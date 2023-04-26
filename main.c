@@ -3,17 +3,19 @@
 #include <math.h>
 #include <time.h>
 #include <stdlib.h>
+#include <time.h>
 
-#define WIDTH 20
-#define HEIGHT 20
-#define NUM_FLAKES 40
+#define WIDTH 50
+#define HEIGHT 50
+#define NUM_ITERATIONS 10000
 
 struct Cell {
-    double posX;
-    double posY;
+    int posX;
+    int posY;
     int cellWidth;
     int cellHeight;
     int depth;
+    int pointer;
     struct Flakes*  flakes; // Hält die zu der Zelle zugehörigen Flakes
     struct Cell* cells;
     /*
@@ -142,53 +144,20 @@ struct Cell {
 
 // Klasse für Kugel (=Flake)
 struct Flake {
-    int x;
-    int y;
-    int velX;
-    int velY;
-    /*
-    move() { //Mache einen Schritt
-        if (this.velX > maxSpeed)
-            this.velX = maxSpeed;
-        else if (this.velX < -maxSpeed)
-            this.velX = -maxSpeed;
-
-        if (this.velY > maxSpeed)
-            this.velY = maxSpeed;
-        else if (this.velY < -maxSpeed)
-            this.velY = -maxSpeed;
-
-        this.velY += gravity;
-
-        if (this.x + this.velX + flakeSize/2 > width) {
-            this.x = width - flakeSize/2;
-            this.velX *= -1;
-        } else if (this.x + this.velX - flakeSize/2 < 0) {
-            this.x = flakeSize/2;
-            this.velX *= -1;
-        }
-
-        if (this.y + this.velY + flakeSize/2 > height) {
-            this.y = height - flakeSize/2;
-            this.velY *= -1;
-        } else if (this.y + this.velY - flakeSize/2 < 0) {
-            this.y = flakeSize/2;
-            this.velY *= -1;
-        }
-
-        this.x += this.velX;
-        this.y += this.velY;
-    }
-}*/
-
+    double x;
+    double y;
+    double velX;
+    double velY;
 };
 struct Cell* Cell_constructor(int posX, int posY, int cellWidth, int cellHeight, int depth);
-struct Flake* Flake_constructor(int x, int y, int maxSpeed);
-void save_Iteration(FILE* file, struct Cell array[]);
+struct Flake* Flake_constructor(double x, double y, double maxSpeed);
+void Flake_move(struct Flake* this, double flakeSize, double maxSpeed, double gravity, double dt);
+void save_Iteration(FILE* file, struct Flake array[], int num_flakes);
+void checkCollision(struct Flake* bowl, int id, double flakeSize, int num_flakes);
 
 int main() {
 
-    FILE* file = fopen("data.txt","w");
+    FILE* file = fopen("../data.txt","w");
 
     if(file == NULL)
     {
@@ -197,17 +166,24 @@ int main() {
     }
 
     srand(time(NULL));
-    struct Cell bowl[10000]; //Flakearray
-// Bowl (oder =Müslischale) enthält alle Kugeln (oder =Cornflakes)
-    int maxSpeed = 1; //Max Geschwindigkeit der Flake
+
+    int num_flakes = (HEIGHT-2)/2 * (WIDTH-2)/2;
+    struct Flake* bowl = (struct Flake*)malloc( num_flakes * sizeof(struct Flake));
+    
+
+
+    // Bowl (oder =Müslischale) enthält alle Kugeln (oder =Cornflakes)
+    double maxSpeed = 10000000; //Max Geschwindigkeit der Flake
     double force = 1.0; //Kraftfaktor des Wegstoßens einer Flake bei Kollision
+    double dt = 0.01;
     float gravity = 0; //Gravitation
 
     bool showFPS = true;
     bool showCells = true; // Zeichne Zellen des Baumes (High Performance Loss!!)
     bool showFlakesCounter = false; // Zeichne Text: Anzahl der Flakes einer Zelle (High Performance Loss!!)
 
-    double flakeSize = 0; // Größe der Flakes (für auto-ermittlung: = 0 setzen
+    double flakeSize = 1; // Größe der Flakes (für auto-ermittlung: = 0 setzen
+
     int maxDepth = 7; //Maximale Tiefe des Baumes (für auto-ermittlung: = 0 setzen)
     int maxFlakesPerCell = 6; //Maximale Anzahl der Flakes, die eine zelle halten kann -> ab dann neue kinderzellen ("10" wäre zu lang für eine kleine Zelle zum Anzeigen, daher max "9")
 
@@ -222,11 +198,12 @@ int main() {
 
     // Passende Flake-Größe abhängig von Anzahl der Flakes
     if (flakeSize == 0)
-        flakeSize = 1000 / (sqrt(NUM_FLAKES) * 10);
-
+        flakeSize = 1000.0 / (sqrt(num_flakes) * 10);
+    printf("Flakesize: %f\n Num_Flakes: %d\n", flakeSize, num_flakes);
+    fprintf(file, "%d %d %d %d\n", WIDTH, HEIGHT, num_flakes, (int)flakeSize);
     // Maximale Tiefe des Baumes. Effizienz-Tests versprechen bei log(6) die beste Performance
     if (maxDepth == 0)
-        maxDepth = (int) (log(NUM_FLAKES) / log(6));
+        maxDepth = (int) (log(num_flakes) / log(6));
 
 
     // Testing
@@ -235,10 +212,15 @@ int main() {
     //console.log("Max Circles p. Cell: " + maxFlakesPerCell);
 
     //Iteriere "Anzahl der Kugeln"-mal und füge der Müslischüssel immer eine neue Cornflake mit zufälliger Position hinzu
-    for (int i = 0; i < NUM_FLAKES; i++) {
-        //bowl[i] = Flake(random(0, width), random(0, height));
-        bowl[i].posX = (int) (rand() / (float)RAND_MAX * WIDTH);
-        bowl[i].posY = (int) (rand() / (float)RAND_MAX * HEIGHT);
+    /*for (int i = 0; i < NUM_FLAKES; i++) {
+        bowl[i] = *Flake_constructor(rand() / (double)RAND_MAX * (WIDTH-flakeSize/2), rand() / (double)RAND_MAX * (HEIGHT-flakeSize/2), maxSpeed);
+    }*/
+    int i = 0;
+    for (int x = 2; x <= WIDTH-2; x+=2) {
+        for (int y = 2; y <= HEIGHT-2; y+=2) {
+            bowl[i] = *Flake_constructor(x, y, maxSpeed);
+            i++;
+        }
     }
 
 
@@ -249,24 +231,24 @@ int main() {
     //strokeWeight(flakeSize);
     //noFill();
 
-    save_Iteration(file, bowl);
+    clock_t begin = clock();
+    save_Iteration(file, bowl, num_flakes);
+    for(int i=0; i<NUM_ITERATIONS; i++ ) {
+        for(int j=0; j<num_flakes; j++ ) {
+            checkCollision(bowl, j, flakeSize, num_flakes);
+            Flake_move(&bowl[j], flakeSize, maxSpeed, 0, dt);
 
-
-    for(int i=0; i<1000; i++ ) {
-        for(int j=0; j<NUM_FLAKES; j++ ) {
-            bowl[j].posX += (((rand()/(float)RAND_MAX)-0.5))/20;
-            bowl[j].posY += (((rand()/(float)RAND_MAX)-0.5))/20;
         }
-        save_Iteration(file, bowl);
+        if(i%10==0)
+            save_Iteration(file, bowl, num_flakes);
     }
+    clock_t end = clock();
+    double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+    printf("Time per Iteration: %f\n", time_spent/NUM_ITERATIONS);
 
 
     fclose(file);
 }
-
-
-// Klasse für eine Zelle des Quadtrees
-
 
 
 struct Cell* Cell_constructor(int posX, int posY, int cellWidth, int cellHeight, int depth) {
@@ -284,19 +266,117 @@ struct Cell* Cell_constructor(int posX, int posY, int cellWidth, int cellHeight,
 
 
 
-struct Flake* Flake_constructor(int x, int y, int maxSpeed) { //Erzeuge Flake
+struct Flake* Flake_constructor(double x, double y, double maxSpeed) { //Erzeuge Flake
     struct Flake* this = malloc(sizeof(struct Flake));
     this->x = x;
     this->y = y;
-    this->velX = 0;//random(-maxSpeed, maxSpeed);
-    this->velY = 0;//random(-maxSpeed, maxSpeed);
+    this->velX = ((rand() / (double)RAND_MAX)-0.5)*2;
+    this->velY = ((rand() / (double)RAND_MAX)-0.5)*2;
 
     return this;
 }
 
-void save_Iteration(FILE* file, struct Cell array[] ) {
-    for(int i=0; i<NUM_FLAKES; i++) {
-        fprintf(file,"%f %f ",array[i].posX, array[i].posY);
+void save_Iteration(FILE* file, struct Flake array[], int num_flakes) {
+    for(int i=0; i<num_flakes; i++) {
+        fprintf(file,"%f %f ",array[i].x, array[i].y);
     }
     fprintf(file,"%s", " \n");
+}
+
+void Flake_move(struct Flake* this, double flakeSize, double maxSpeed, double gravity, double dt) {
+    if (this->velX > maxSpeed)
+            this->velX = maxSpeed;
+    else if (this->velX < -maxSpeed)
+        this->velX = -maxSpeed;
+
+    if (this->velY > maxSpeed)
+        this->velY = maxSpeed;
+    else if (this->velY < -maxSpeed)
+        this->velY = -maxSpeed;
+
+    //this->velY += gravity;
+//
+    if (this->x + flakeSize/2 > WIDTH) {
+        this->x = WIDTH - flakeSize/2;
+        this->velX *= -1;
+    } else if (this->x - flakeSize/2 <= 0.0) {
+        this->x = flakeSize/2;
+        this->velX *= -1;
+    }
+
+    if (this->y + flakeSize/2 > HEIGHT) {
+        this->y = HEIGHT - flakeSize/2;
+        this->velY *= -1;
+    } else if (this->y - flakeSize/2 <= 0.0) {
+        this->y = flakeSize/2;
+        this->velY *= -1;
+    }
+
+    this->x += this->velX * dt;
+    this->y += this->velY * dt;
+}
+
+void checkCollision(struct Flake* bowl, int id, double flakeSize, int num_flakes) {
+    /*
+    double force = 2;
+    double midX1 = bowl[id].x;
+    double midY1 = bowl[id].y;
+
+    for (int i = 0; i < num_flakes; i++) {
+        double midX2 = bowl[i].x;
+        double midY2 = bowl[i].y;
+
+        double a = midX2 - midX1;
+        double b = midY2 - midY1;
+        double c = sqrt(a * a + b * b);
+
+        if (c > flakeSize) {
+            continue;
+        }
+
+        double angle = atan2(b, a);
+        double targetX = midX1 + cos(angle) * flakeSize;
+        double targetY = midY1 + sin(angle) * flakeSize;
+        double ax = (targetX - midX2);
+        double ay = (targetY - midY2);
+
+        bowl[id].velX -= ax * force;
+        bowl[id].velY -= ay * force;
+        bowl[i].velX += ax * force;
+        bowl[i].velY += ay * force;
+    */
+
+    for (int j = id+1; j < num_flakes; j++) {
+
+
+        double d = sqrt((bowl[id].x - bowl[j].x)*(bowl[id].x - bowl[j].x)  + (bowl[id].y - bowl[j].y)*(bowl[id].y - bowl[j].y));
+        if(d > flakeSize)
+            continue;
+
+        double nx = (bowl[j].x - bowl[id].x) / d;
+        double ny = (bowl[j].y - bowl[id].y) / d;
+        double p = 2 * (bowl[id].velX * nx + bowl[id].velY * ny - bowl[j].velX * nx -
+                        bowl[j].velY * ny);// / (bowl[id].mass + bowl[j].mass);
+        bowl[id].velX += -p * nx;
+        bowl[id].velY += -p * ny;
+        bowl[j].velX += p * nx;
+        bowl[j].velY += p * ny;
+
+
+        // WIKIPEDIA FORMULAR
+    /*
+    for (int j = id+1; j < num_flakes; j++) {
+        double d = ((bowl[id].x - bowl[j].x)*(bowl[id].x - bowl[j].x)  + (bowl[id].y - bowl[j].y)*(bowl[id].y - bowl[j].y));
+        if(d > flakeSize*flakeSize)
+            continue;
+        double r1 = ((bowl[id].velX - bowl[j].velX) * (bowl[id].x - bowl[j].x)  + (bowl[id].velY - bowl[j].velY) * (bowl[id].y - bowl[j].y));
+        bowl[id].velX -= r1 / d *(bowl[id].x - bowl[j].x);
+        bowl[id].velY -= r1 / d *(bowl[id].y - bowl[j].y);
+
+        double r2 = ((bowl[j].velX - bowl[id].velX) * (bowl[j].x - bowl[id].x)  + (bowl[j].velY - bowl[id].velY) * (bowl[j].y - bowl[id].y));
+        bowl[j].velX = r1 / d *(bowl[j].x - bowl[id].x);
+        bowl[j].velY = r1 / d *(bowl[j].y - bowl[id].y);
+
+*/
+    }
 }
