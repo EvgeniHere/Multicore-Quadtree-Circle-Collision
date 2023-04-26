@@ -7,7 +7,7 @@
 #define SCREEN_WIDTH 20
 #define SCREEN_HEIGHT 20
 
-#define numCircles 15 //((SCREEN_HEIGHT - 2) / 2 * (SCREEN_WIDTH - 2) / 2);
+#define numCircles 15 //((SCREEN_HEIGHT - 2) / 2 * (SCREEN_WIDTH - 2) / 2)
 #define circleSize 3
 #define maxCirclesPerCell 5
 #define maxSpeed 1.0
@@ -71,8 +71,8 @@ int main() {
     printf("Flakesize: %d\n Num_Flakes: %d\n", circleSize, numCircles);
     fprintf(file, "%d %d %d %d\n", SCREEN_WIDTH, SCREEN_HEIGHT, numCircles, circleSize);
 
-
-    /*int i = 0;
+    /*
+    int i = 0;
     for (int x = 2; x <= SCREEN_WIDTH-2; x+=2) {
         for (int y = 2; y <= SCREEN_HEIGHT-2; y+=2) {
             circles[i].posX = x;
@@ -82,7 +82,8 @@ int main() {
             addCircleToCell(i, &rootCell);
             i++;
         }
-    }*/
+    }
+    */
     for (int i = 0; i < numCircles; i++) {
         circles[i].posX = random_int(0, SCREEN_WIDTH);
         circles[i].posY = random_int(0, SCREEN_HEIGHT);
@@ -90,6 +91,7 @@ int main() {
         circles[i].velY = random_double(-1.0, 1.0);
         addCircleToCell(i, &rootCell);
     }
+
 
     clock_t begin = clock();
     for (int counter = 0; counter < count; counter++) {
@@ -151,7 +153,7 @@ void checkCollisions(int circle_id, struct Cell* cell) {
     double midY1 = circle1->posY;
 
     for (int i = 0; i < cell->numCirclesInCell; i++) {
-        struct Circle* circle2 = &circles[cell->circle_ids[i]];
+        /*struct Circle* circle2 = &circles[cell->circle_ids[i]];
         double midX2 = circle2->posX;
         double midY2 = circle2->posX;
 
@@ -171,7 +173,20 @@ void checkCollisions(int circle_id, struct Cell* cell) {
         circles[circle_id].velX -= ax * force;
         circles[circle_id].velY -= ay * force;
         circles[cell->circle_ids[i]].velX += ax * force;
-        circles[cell->circle_ids[i]].velY += ay * force;
+        circles[cell->circle_ids[i]].velY += ay * force;*/
+        int j = cell->circle_ids[i];
+        double d = sqrt((circles[circle_id].posX - circles[j].posX)*(circles[circle_id].posX - circles[j].posX)  + (circles[circle_id].posY - circles[j].posY)*(circles[circle_id].posY - circles[j].posY));
+        if(d > circleSize)
+            continue;
+
+        double nx = (circles[j].posX - circles[circle_id].posX) / d;
+        double ny = (circles[j].posY - circles[circle_id].posY) / d;
+        double p = 2 * (circles[circle_id].velX * nx + circles[circle_id].velY * ny - circles[j].velX * nx -
+                circles[j].velY * ny);// / (bowl[id].mass + bowl[j].mass);
+        circles[circle_id].velX += -p * nx;
+        circles[circle_id].velY += -p * ny;
+        circles[j].velX += p * nx;
+        circles[j].velY += p * ny;
     }
 }
 
@@ -247,8 +262,8 @@ void addCircleToCell(int circle_id, struct Cell* cell) {
                 addCircleToCell(cell->circle_ids[j], &cell->subCells[i]);
         }
 
-        if (isCircleInCellArea(circle_id, cell->subCells[i]))
-            addCircleToCell(circle_id, &cell->subCells[i]);
+        //if (isCircleInCellArea(circle_id, cell->subCells[i]))
+        //    addCircleToCell(circle_id, &cell->subCells[i]);
     }
 
     cell->numCirclesInCell = 0;
