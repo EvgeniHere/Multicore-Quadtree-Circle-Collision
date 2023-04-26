@@ -4,8 +4,8 @@
 #include <math.h>
 #include <stdbool.h>
 
-#define SCREEN_WIDTH 3
-#define SCREEN_HEIGHT 3
+#define SCREEN_WIDTH 5
+#define SCREEN_HEIGHT 5
 #define numCircles 2//((SCREEN_HEIGHT - 2) / 2 * (SCREEN_WIDTH - 2) / 2)
 #define circleSize 1.0
 #define maxCirclesPerCell 5
@@ -59,7 +59,7 @@ int main() {
     //circles =  (struct Circle*)malloc( numCircles * sizeof(struct Circle));
 
 
-    srand(80);
+    srand(90);
 
     struct Cell rootCell;
     rootCell.cellWidth = (double) SCREEN_WIDTH;
@@ -69,7 +69,7 @@ int main() {
     rootCell.numCirclesInCell = 0;
     rootCell.circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
 
-    printf("Flakesize: %d\n Num_Flakes: %d\n", circleSize, numCircles);
+    printf("Flakesize: %d\nNum. Circles: %d\n", circleSize, numCircles);
     fprintf(file, "%d %d %d %d %d\n", SCREEN_WIDTH, SCREEN_HEIGHT, numCircles, (int)circleSize, count/saveIntervall);
 
     /*
@@ -91,7 +91,6 @@ int main() {
         circles[i].posY = random_double(circleSize/2, SCREEN_HEIGHT-circleSize/2);
         circles[i].velX = random_double(-1.0, 1.0);
         circles[i].velY = random_double(-1.0, 1.0);
-        addCircleToCell(i, &rootCell, true);
     }
 
     save_Iteration(file);
@@ -179,7 +178,7 @@ void checkCollisions(int circle_id, struct Cell* cell) {
         circles[cell->circle_ids[i]].velY += ay * force;
         */
         int j = cell->circle_ids[i];
-        if(j == i)
+        if(j == circle_id)
             continue;
         double d = sqrt((circles[circle_id].posX - circles[j].posX)*(circles[circle_id].posX - circles[j].posX)  + (circles[circle_id].posY - circles[j].posY)*(circles[circle_id].posY - circles[j].posY));
         if(d > circleSize)
