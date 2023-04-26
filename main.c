@@ -1,159 +1,49 @@
-#include<stdio.h>
-#include <stdbool.h>
-#include <math.h>
-#include <time.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <math.h>
+#include <stdbool.h>
 
-#define WIDTH 50
-#define HEIGHT 50
-#define NUM_ITERATIONS 10000
+#define SCREEN_WIDTH 20
+#define SCREEN_HEIGHT 20
 
-struct Cell {
-    int posX;
-    int posY;
-    int cellWidth;
-    int cellHeight;
-    int depth;
-    int pointer;
-    struct Flakes*  flakes; // Hält die zu der Zelle zugehörigen Flakes
-    struct Cell* cells;
-    /*
-        // Lösche den Teilbaum ab und inklusive dieser Zelle
-        clearAll() {
-            this.cells = [];
-            this.flakes = [];
-        }
+#define numCircles 15 //((SCREEN_HEIGHT - 2) / 2 * (SCREEN_WIDTH - 2) / 2);
+#define circleSize 3
+#define maxCirclesPerCell 5
+#define maxSpeed 1.0
+#define force 10.0
+#define count 10
 
-        // Gib aus ob die Zelle Kinder hat
-        hasChildren() {
-            return this.cells.length > 0;
-        }
 
-        // Erzeuge Kinder-Zellen
-        createChildren() {
-            let cx = this.posX;
-            let cy = this.posY;
-            let cw = this.cellWidth/2;
-            let ch = this.cellHeight/2;
-
-            this.cells[0] = new Cell(cx, cy, cw, ch, this.depth + 1);
-            this.cells[1] = new Cell(cx, cy + ch, cw, ch, this.depth + 1);
-            this.cells[2] = new Cell(cx + cw, cy, cw, ch, this.depth + 1);
-            this.cells[3] = new Cell(cx + cw, cy + ch, cw, ch, this.depth + 1);
-        }
-
-        // Füge die Flake(-id) den passenden Kinder-Zellen hinzu
-        addToChildren(flake_id) {
-            // Erhalte die Position des Flake-Objekts mit ID: "flake_id"
-            // aus dem globalen bowl-Array
-            let fx = bowl[flake_id].x;
-            let fy = bowl[flake_id].y;
-
-            // Iteriere über die Anzahl der Kinder-Zellen
-            // Sollte Flake in mehreren Zellen liegen,
-            // füge sie allen Betroffenen hinzu,
-            // damit Collision auch Zellen-Übergreifend möglich ist.
-            for (let i = 0; i < 4; i++) {
-                let cx = this.cells[i].posX;
-                let cy = this.cells[i].posY;
-                let cw = this.cells[i].cellWidth;
-                let ch = this.cells[i].cellHeight;
-
-                // Falls Flake "flake_id" Positionsmäßig in Zelle i liegt, adde sie dort
-                if (fx + flakeSize > cx && fx < cx + cw && fy + flakeSize > cy && fy < cy + ch)
-                    this.cells[i].addFlake(flake_id);
-            }
-        }
-
-        // Füge dem Baum eine Flake(-id) hinzu
-        addFlake(flake_id) {
-            // Falls Zelle Kinder-Zellen hat, übergebe die Flake an die,
-            // sonst adde sie zu den Flakes dieser Zelle
-            if (this.hasChildren()) {
-                this.addToChildren(flake_id);
-                return;
-            }
-
-            // Falls Flakesanzahl in Zelle die max Anzahl einer Zelle
-            // überschreitet oder die max Tiefe erreicht wurde,
-            // erzeuge Kinder-Zellen
-            // sonst Prüfe auf Kollisionen
-            // (Kein extra Aufruf nötig: Zwei Fliegen mit einer Klappe)
-            if (this.flakes.length + 1 <= maxFlakesPerCell || this.depth >= maxDepth) {
-                // Prüfe auf Kollisionen mit dieser Flake in dieser Zelle
-                this.checkCollision(flake_id);
-
-                // Füge die Flake endgültig der Zelle hinzu
-                this.flakes[this.flakes.length] = flake_id;
-            } else {
-                // Erzeuge neue Kinder-Zellen
-                this.createChildren();
-
-                // Übergebe alle Flakes der Zelle den Kinder-Zellen
-                for (let i = 0; i < this.flakes.length; i++)
-                    this.addToChildren(this.flakes[i]);
-
-                this.addToChildren(flake_id);
-            }
-        }
-
-        //Prüfe auf Kollisionen einer Flake mit allen aus der Zelle
-        checkCollision(flake_id) {
-            let midX1 = bowl[flake_id].x;
-            let midY1 = bowl[flake_id].y;
-
-            for (let i = 0; i < this.flakes.length; i++) {
-                let midX2 = bowl[this.flakes[i]].x;
-                let midY2 = bowl[this.flakes[i]].y;
-
-                let a = midX2 - midX1;
-                let b = midY2 - midY1;
-                let c = sqrt(a*a + b*b);
-
-                if (c > flakeSize)
-                    continue;
-
-                let angle = atan2(b, a);
-                let targetX = midX1 + cos(angle) * flakeSize;
-                let targetY = midY1 + sin(angle) * flakeSize;
-                let ax = (targetX - midX2);
-                let ay = (targetY - midY2);
-
-                bowl[flake_id].velX -= ax * force;
-                bowl[flake_id].velY -= ay * force;
-                bowl[this.flakes[i]].velX += ax * force;
-                bowl[this.flakes[i]].velY += ay * force;
-            }
-        }
-
-        // Male den Teilbaum
-        drawCells() {
-            if (this.hasChildren())
-                for (let i = 0; i < 4; i++)
-                    this.cells[i].drawCells();
-            else {
-                rect(this.posX, this.posY, this.cellWidth, this.cellHeight);
-
-                if (showFlakesCounter) {
-                    text(this.flakes.length, this.posX + this.cellWidth / 2 - 3, this.posY + this.cellHeight / 2 + 5);
-                }
-            }
-        }*/
-};
-
-// Klasse für Kugel (=Flake)
-struct Flake {
-    double x;
-    double y;
+struct Circle {
+    double posX;
+    double posY;
     double velX;
     double velY;
 };
-struct Cell* Cell_constructor(int posX, int posY, int cellWidth, int cellHeight, int depth);
-struct Flake* Flake_constructor(double x, double y, double maxSpeed);
-void Flake_move(struct Flake* this, double flakeSize, double maxSpeed, double gravity, double dt);
-void save_Iteration(FILE* file, struct Flake array[], int num_flakes);
-void checkCollision(struct Flake* bowl, int id, double flakeSize, int num_flakes);
+
+struct Circle circles[numCircles];
+
+struct Cell {
+    double posX;
+    double posY;
+    double cellWidth;
+    double cellHeight;
+    int numCirclesInCell;
+    int depth;
+    bool isLeaf;
+    int* circle_ids;
+    struct Cell* subCells;
+};
+void move(int circle_id);
+void checkCollisions(int circle_id, struct Cell* cell);
+void deleteTree(struct Cell* cell);
+bool isCircleInCellArea(int circle_id, struct Cell cell);
+void split(struct Cell* cell);
+void addCircleToCell(int circle_id, struct Cell* cell);
+int random_int(int min, int max);
+double random_double(double min, double max);
+void save_Iteration(FILE* file);
 
 int main() {
 
@@ -165,218 +55,218 @@ int main() {
         exit(1);
     }
 
-    srand(time(NULL));
-
-    int num_flakes = (HEIGHT-2)/2 * (WIDTH-2)/2;
-    struct Flake* bowl = (struct Flake*)malloc( num_flakes * sizeof(struct Flake));
-    
+    //circles =  (struct Circle*)malloc( numCircles * sizeof(struct Circle));
 
 
-    // Bowl (oder =Müslischale) enthält alle Kugeln (oder =Cornflakes)
-    double maxSpeed = 10000000; //Max Geschwindigkeit der Flake
-    double force = 1.0; //Kraftfaktor des Wegstoßens einer Flake bei Kollision
-    double dt = 0.01;
-    float gravity = 0; //Gravitation
+    srand(time(0));
 
-    bool showFPS = true;
-    bool showCells = true; // Zeichne Zellen des Baumes (High Performance Loss!!)
-    bool showFlakesCounter = false; // Zeichne Text: Anzahl der Flakes einer Zelle (High Performance Loss!!)
+    struct Cell rootCell;
+    rootCell.cellWidth = (double) SCREEN_WIDTH;
+    rootCell.cellHeight = (double) SCREEN_HEIGHT;
+    rootCell.depth = 0;
+    rootCell.isLeaf = true;
+    rootCell.numCirclesInCell = 0;
+    rootCell.circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
 
-    double flakeSize = 1; // Größe der Flakes (für auto-ermittlung: = 0 setzen
-
-    int maxDepth = 7; //Maximale Tiefe des Baumes (für auto-ermittlung: = 0 setzen)
-    int maxFlakesPerCell = 6; //Maximale Anzahl der Flakes, die eine zelle halten kann -> ab dann neue kinderzellen ("10" wäre zu lang für eine kleine Zelle zum Anzeigen, daher max "9")
-
-    int timer = 1000;
-    int iterationCounter = 0;
-    int lastIterationCounter = 0;
-
-    int updateDelay = 16; // Update Intervall
-    int updateTimer = 0; // Zeit seit Programmstart bis zum nächsten Update
-
-    //createCanvas(1000, 1000);
-
-    // Passende Flake-Größe abhängig von Anzahl der Flakes
-    if (flakeSize == 0)
-        flakeSize = 1000.0 / (sqrt(num_flakes) * 10);
-    printf("Flakesize: %f\n Num_Flakes: %d\n", flakeSize, num_flakes);
-    fprintf(file, "%d %d %d %d\n", WIDTH, HEIGHT, num_flakes, (int)flakeSize);
-    // Maximale Tiefe des Baumes. Effizienz-Tests versprechen bei log(6) die beste Performance
-    if (maxDepth == 0)
-        maxDepth = (int) (log(num_flakes) / log(6));
+    printf("Flakesize: %d\n Num_Flakes: %d\n", circleSize, numCircles);
+    fprintf(file, "%d %d %d %d\n", SCREEN_WIDTH, SCREEN_HEIGHT, numCircles, circleSize);
 
 
-    // Testing
-    //console.log("Circles: " + num_flakes)
-    //console.log("Circle Diameter: " + flakeSize)
-    //console.log("Max Circles p. Cell: " + maxFlakesPerCell);
-
-    //Iteriere "Anzahl der Kugeln"-mal und füge der Müslischüssel immer eine neue Cornflake mit zufälliger Position hinzu
-    /*for (int i = 0; i < NUM_FLAKES; i++) {
-        bowl[i] = *Flake_constructor(rand() / (double)RAND_MAX * (WIDTH-flakeSize/2), rand() / (double)RAND_MAX * (HEIGHT-flakeSize/2), maxSpeed);
-    }*/
-    int i = 0;
-    for (int x = 2; x <= WIDTH-2; x+=2) {
-        for (int y = 2; y <= HEIGHT-2; y+=2) {
-            bowl[i] = *Flake_constructor(x, y, maxSpeed);
+    /*int i = 0;
+    for (int x = 2; x <= SCREEN_WIDTH-2; x+=2) {
+        for (int y = 2; y <= SCREEN_HEIGHT-2; y+=2) {
+            circles[i].posX = x;
+            circles[i].posY = y;
+            circles[i].velX = random_double(-1.0, 1.0);
+            circles[i].velY = random_double(-1.0, 1.0);
+            addCircleToCell(i, &rootCell);
             i++;
         }
+    }*/
+    for (int i = 0; i < numCircles; i++) {
+        circles[i].posX = random_int(0, SCREEN_WIDTH);
+        circles[i].posY = random_int(0, SCREEN_HEIGHT);
+        circles[i].velX = random_double(-1.0, 1.0);
+        circles[i].velY = random_double(-1.0, 1.0);
+        addCircleToCell(i, &rootCell);
     }
 
-
-    //Erzeuge Wurzel-Zelle des Baumes (gesamte Zeichenfläche)
-    struct Cell* rootCell = Cell_constructor(0,0 , WIDTH,HEIGHT,0);
-
-    // weißen Malstift auswählen, Shapes nicht füllen und Malstift-Thickness setzen
-    //strokeWeight(flakeSize);
-    //noFill();
-
     clock_t begin = clock();
-    save_Iteration(file, bowl, num_flakes);
-    for(int i=0; i<NUM_ITERATIONS; i++ ) {
-        for(int j=0; j<num_flakes; j++ ) {
-            checkCollision(bowl, j, flakeSize, num_flakes);
-            Flake_move(&bowl[j], flakeSize, maxSpeed, 0, dt);
-
+    for (int counter = 0; counter < count; counter++) {
+        for (int i = 0; i < numCircles; i++) {
+            addCircleToCell(i, &rootCell);
+            move(i);
         }
-        if(i%10==0)
-            save_Iteration(file, bowl, num_flakes);
+        deleteTree(&rootCell);
+        rootCell.circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
+        if(counter%10==0)
+            save_Iteration(file);
+
     }
     clock_t end = clock();
     double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-    printf("Time per Iteration: %f\n", time_spent/NUM_ITERATIONS);
-
+    printf("Time per Iteration: %f\n", time_spent/count);
 
     fclose(file);
-}
 
 
-struct Cell* Cell_constructor(int posX, int posY, int cellWidth, int cellHeight, int depth) {
-    struct Cell* this = malloc(sizeof(struct Cell));
-    this->posX = posX;
-    this->posY = posY;
-    this->cellWidth = cellWidth;
-    this->cellHeight = cellHeight;
-    this->depth = depth;
-    //this->flakes = []; // Hält die zu der Zelle zugehörigen Flakes
-    //this->cells = []; // Hält Kinder-Zellen (leer oder Länge 4)
-    return this;
 }
 
 
 
+void move(int circle_id) {
+    struct Circle circle = circles[circle_id];
+    if (circle.velX > maxSpeed)
+        circle.velX = maxSpeed;
+    if (circle.velY > maxSpeed)
+        circle.velY = maxSpeed;
+    if (circle.velX < -maxSpeed)
+        circle.velX = -maxSpeed;
+    if (circle.velY < -maxSpeed)
+        circle.velY = -maxSpeed;
 
-struct Flake* Flake_constructor(double x, double y, double maxSpeed) { //Erzeuge Flake
-    struct Flake* this = malloc(sizeof(struct Flake));
-    this->x = x;
-    this->y = y;
-    this->velX = ((rand() / (double)RAND_MAX)-0.5)*2;
-    this->velY = ((rand() / (double)RAND_MAX)-0.5)*2;
+    if (circle.posX + circle.velX + circleSize > SCREEN_WIDTH) {
+        circle.posX = SCREEN_WIDTH - circleSize;
+        circle.velX *= -1;
+    } else if (circle.posX + circle.velX < 0) {
+        circle.posX = 0;
+        circle.velX *= -1;
+    }
 
-    return this;
+    if (circle.posY + circle.velY + circleSize > SCREEN_HEIGHT) {
+        circle.posY = SCREEN_HEIGHT - circleSize;
+        circle.velY *= -1;
+    } else if (circle.posY + circle.velY < 0) {
+        circle.posY = 0;
+        circle.velY *= -1;
+    }
+
+    circle.posX += circle.velX;
+    circle.posY += circle.velY;
 }
 
-void save_Iteration(FILE* file, struct Flake array[], int num_flakes) {
-    for(int i=0; i<num_flakes; i++) {
-        fprintf(file,"%f %f ",array[i].x, array[i].y);
+void checkCollisions(int circle_id, struct Cell* cell) {
+    struct Circle* circle1 = &circles[circle_id];
+    double midX1 = circle1->posX;
+    double midY1 = circle1->posY;
+
+    for (int i = 0; i < cell->numCirclesInCell; i++) {
+        struct Circle* circle2 = &circles[cell->circle_ids[i]];
+        double midX2 = circle2->posX;
+        double midY2 = circle2->posX;
+
+        double a = midX2 - midX1;
+        double b = midY2 - midY1;
+        double c = sqrt(a*a + b*b);
+
+        if (c > circleSize)
+            continue;
+
+        double angle = atan2(b, a);
+        double targetX = midX1 + cos(angle) * circleSize;
+        double targetY = midY1 + sin(angle) * circleSize;
+        double ax = (targetX - midX2);
+        double ay = (targetY - midY2);
+
+        circles[circle_id].velX -= ax * force;
+        circles[circle_id].velY -= ay * force;
+        circles[cell->circle_ids[i]].velX += ax * force;
+        circles[cell->circle_ids[i]].velY += ay * force;
+    }
+}
+
+void deleteTree(struct Cell* cell) {
+    if (!cell->isLeaf) {
+        for (int i = 0; i < 4; i++) {
+            deleteTree(&cell->subCells[i]);
+        }
+        free(cell->subCells);
+        cell->isLeaf = true;
+    } else {
+        if (cell->numCirclesInCell != 0) {
+            free(cell->circle_ids);
+            cell->numCirclesInCell = 0;
+        }
+    }
+}
+
+bool isCircleInCellArea(int circle_id, struct Cell cell) {
+    struct Circle circle = circles[circle_id];
+
+    return circle.posX + circleSize > cell.cellWidth && circle.posX < cell.posX + cell.cellWidth && circle.posY + circleSize > cell.posY && circle.posY < cell.posY + cell.cellHeight;
+}
+
+void split(struct Cell* cell) {
+    cell->subCells = (struct Cell*)malloc(4 * sizeof(struct Cell));
+    if(cell->subCells == NULL) {
+        printf("Memory error!");
+        exit(1);
+    }
+
+    for (int i = 0; i < 4; i++) {
+        cell->subCells[i].cellWidth = cell->cellWidth / 2;
+        cell->subCells[i].cellHeight = cell->cellHeight / 2;
+        cell->subCells[i].depth = cell->depth + 1;
+        cell->subCells[i].isLeaf = true;
+        cell->subCells[i].numCirclesInCell = 0;
+        cell->subCells[i].circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
+    }
+
+    cell->subCells[0].posX = cell->posX;
+    cell->subCells[0].posY = cell->posY;
+    cell->subCells[1].posX = cell->posX + cell->cellWidth / 2;
+    cell->subCells[1].posY = cell->posY;
+    cell->subCells[2].posX = cell->posX + cell->cellWidth / 2;
+    cell->subCells[2].posY = cell->posY + cell->cellHeight / 2;
+    cell->subCells[3].posX = cell->posX;
+    cell->subCells[3].posY = cell->posY + cell->cellHeight / 2;
+
+    cell->isLeaf = false;
+}
+
+void addCircleToCell(int circle_id, struct Cell* cell) {
+    if (!cell->isLeaf) {
+        for (int i = 0; i < 4; i++)
+            if (isCircleInCellArea(circle_id, cell->subCells[i]))
+                addCircleToCell(circle_id, &cell->subCells[i]);
+        return;
+    }
+
+    if (cell->numCirclesInCell < maxCirclesPerCell) {
+        checkCollisions(circle_id, cell);
+        cell->circle_ids[cell->numCirclesInCell] = circle_id;
+        cell->numCirclesInCell++;
+        return;
+    }
+
+    split(cell);
+
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < maxCirclesPerCell; j++) {
+            if (isCircleInCellArea(cell->circle_ids[j], cell->subCells[i]))
+                addCircleToCell(cell->circle_ids[j], &cell->subCells[i]);
+        }
+
+        if (isCircleInCellArea(circle_id, cell->subCells[i]))
+            addCircleToCell(circle_id, &cell->subCells[i]);
+    }
+
+    cell->numCirclesInCell = 0;
+    free(cell->circle_ids);
+}
+
+int random_int(int min, int max) {
+    return rand() % (max - min + 1) + min;
+}
+
+double random_double(double min, double max) {
+    return min + (rand() / (RAND_MAX / (max - min)));
+}
+
+void save_Iteration(FILE* file) {
+    for(int i=0; i<numCircles; i++) {
+        fprintf(file,"%f %f ",circles[i].posX, circles[i].posY);
     }
     fprintf(file,"%s", " \n");
 }
 
-void Flake_move(struct Flake* this, double flakeSize, double maxSpeed, double gravity, double dt) {
-    if (this->velX > maxSpeed)
-            this->velX = maxSpeed;
-    else if (this->velX < -maxSpeed)
-        this->velX = -maxSpeed;
-
-    if (this->velY > maxSpeed)
-        this->velY = maxSpeed;
-    else if (this->velY < -maxSpeed)
-        this->velY = -maxSpeed;
-
-    //this->velY += gravity;
-//
-    if (this->x + flakeSize/2 > WIDTH) {
-        this->x = WIDTH - flakeSize/2;
-        this->velX *= -1;
-    } else if (this->x - flakeSize/2 <= 0.0) {
-        this->x = flakeSize/2;
-        this->velX *= -1;
-    }
-
-    if (this->y + flakeSize/2 > HEIGHT) {
-        this->y = HEIGHT - flakeSize/2;
-        this->velY *= -1;
-    } else if (this->y - flakeSize/2 <= 0.0) {
-        this->y = flakeSize/2;
-        this->velY *= -1;
-    }
-
-    this->x += this->velX * dt;
-    this->y += this->velY * dt;
-}
-
-void checkCollision(struct Flake* bowl, int id, double flakeSize, int num_flakes) {
-    /*
-    double force = 2;
-    double midX1 = bowl[id].x;
-    double midY1 = bowl[id].y;
-
-    for (int i = 0; i < num_flakes; i++) {
-        double midX2 = bowl[i].x;
-        double midY2 = bowl[i].y;
-
-        double a = midX2 - midX1;
-        double b = midY2 - midY1;
-        double c = sqrt(a * a + b * b);
-
-        if (c > flakeSize) {
-            continue;
-        }
-
-        double angle = atan2(b, a);
-        double targetX = midX1 + cos(angle) * flakeSize;
-        double targetY = midY1 + sin(angle) * flakeSize;
-        double ax = (targetX - midX2);
-        double ay = (targetY - midY2);
-
-        bowl[id].velX -= ax * force;
-        bowl[id].velY -= ay * force;
-        bowl[i].velX += ax * force;
-        bowl[i].velY += ay * force;
-    */
-
-    for (int j = id+1; j < num_flakes; j++) {
-
-
-        double d = sqrt((bowl[id].x - bowl[j].x)*(bowl[id].x - bowl[j].x)  + (bowl[id].y - bowl[j].y)*(bowl[id].y - bowl[j].y));
-        if(d > flakeSize)
-            continue;
-
-        double nx = (bowl[j].x - bowl[id].x) / d;
-        double ny = (bowl[j].y - bowl[id].y) / d;
-        double p = 2 * (bowl[id].velX * nx + bowl[id].velY * ny - bowl[j].velX * nx -
-                        bowl[j].velY * ny);// / (bowl[id].mass + bowl[j].mass);
-        bowl[id].velX += -p * nx;
-        bowl[id].velY += -p * ny;
-        bowl[j].velX += p * nx;
-        bowl[j].velY += p * ny;
-
-
-        // WIKIPEDIA FORMULAR
-    /*
-    for (int j = id+1; j < num_flakes; j++) {
-        double d = ((bowl[id].x - bowl[j].x)*(bowl[id].x - bowl[j].x)  + (bowl[id].y - bowl[j].y)*(bowl[id].y - bowl[j].y));
-        if(d > flakeSize*flakeSize)
-            continue;
-        double r1 = ((bowl[id].velX - bowl[j].velX) * (bowl[id].x - bowl[j].x)  + (bowl[id].velY - bowl[j].velY) * (bowl[id].y - bowl[j].y));
-        bowl[id].velX -= r1 / d *(bowl[id].x - bowl[j].x);
-        bowl[id].velY -= r1 / d *(bowl[id].y - bowl[j].y);
-
-        double r2 = ((bowl[j].velX - bowl[id].velX) * (bowl[j].x - bowl[id].x)  + (bowl[j].velY - bowl[id].velY) * (bowl[j].y - bowl[id].y));
-        bowl[j].velX = r1 / d *(bowl[j].x - bowl[id].x);
-        bowl[j].velY = r1 / d *(bowl[j].y - bowl[id].y);
-
-*/
-    }
-}
