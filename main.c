@@ -4,15 +4,15 @@
 #include <math.h>
 #include <stdbool.h>
 
-#define SCREEN_WIDTH 5
-#define SCREEN_HEIGHT 5
-#define numCircles 2//((SCREEN_HEIGHT - 2) / 2 * (SCREEN_WIDTH - 2) / 2)
+#define SCREEN_WIDTH 1000
+#define SCREEN_HEIGHT 1000
+#define numCircles ((SCREEN_HEIGHT - 2) / 2 * (SCREEN_WIDTH - 2) / 2)
 #define circleSize 1.0
 #define maxCirclesPerCell 5
 #define maxSpeed 1.0
 #define force 10.0
-#define count 100
-#define saveIntervall 1
+#define count 10
+#define saveIntervall 100
 #define dt 0.1
 
 
@@ -31,11 +31,11 @@ struct Cell {
     double cellWidth;
     double cellHeight;
     int numCirclesInCell;
-    int depth;
     bool isLeaf;
     int* circle_ids;
     struct Cell* subCells;
 };
+
 void move(int circle_id);
 void addCircleToCell(int circle_id, struct Cell* cell, bool checkCollision);
 void deleteTree(struct Cell* cell);
@@ -47,32 +47,27 @@ void save_Iteration(FILE* file);
 void checkCollisions(int circle_id, struct Cell* cell);
 
 int main() {
-
     FILE* file = fopen("../data.txt","w");
 
-    if(file == NULL)
-    {
+    if(file == NULL) {
         printf("Error!");
         exit(1);
     }
 
     //circles =  (struct Circle*)malloc( numCircles * sizeof(struct Circle));
 
+    srand(time(NULL));
 
-    srand(90);
+    struct Cell* rootCell = (struct Cell*)malloc(sizeof(struct Cell));
+    rootCell->cellWidth = (double) SCREEN_WIDTH;
+    rootCell->cellHeight = (double) SCREEN_HEIGHT;
+    rootCell->isLeaf = true;
+    rootCell->numCirclesInCell = 0;
+    rootCell->circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
 
-    struct Cell rootCell;
-    rootCell.cellWidth = (double) SCREEN_WIDTH;
-    rootCell.cellHeight = (double) SCREEN_HEIGHT;
-    rootCell.depth = 0;
-    rootCell.isLeaf = true;
-    rootCell.numCirclesInCell = 0;
-    rootCell.circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
-
-    printf("Flakesize: %d\nNum. Circles: %d\n", circleSize, numCircles);
+    printf("Circle Size: %d\nNum. Circles: %d\n", (int)circleSize, numCircles);
     fprintf(file, "%d %d %d %d %d\n", SCREEN_WIDTH, SCREEN_HEIGHT, numCircles, (int)circleSize, count/saveIntervall);
 
-    /*
     int i = 0;
     for (int x = 2; x <= SCREEN_WIDTH-2; x+=2) {
         for (int y = 2; y <= SCREEN_HEIGHT-2; y+=2) {
@@ -80,42 +75,40 @@ int main() {
             circles[i].posY = y;
             circles[i].velX = random_double(-1.0, 1.0);
             circles[i].velY = random_double(-1.0, 1.0);
-            addCircleToCell(i, &rootCell, true);
+            addCircleToCell(i, rootCell, true);
             i++;
         }
     }
-    */
+    /*
 
     for (int i = 0; i < numCircles; i++) {
         circles[i].posX = random_double(circleSize/2, SCREEN_WIDTH-circleSize/2);
         circles[i].posY = random_double(circleSize/2, SCREEN_HEIGHT-circleSize/2);
         circles[i].velX = random_double(-1.0, 1.0);
         circles[i].velY = random_double(-1.0, 1.0);
-    }
+    }*/
 
     save_Iteration(file);
     clock_t begin = clock();
     for (int counter = 0; counter < count; counter++) {
         for (int i = 0; i < numCircles; i++) {
-            addCircleToCell(i, &rootCell, true);
+            addCircleToCell(i, rootCell, true);
             move(i);
         }
-        deleteTree(&rootCell);
-        rootCell.circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
-        if(counter%saveIntervall==0)
+        deleteTree(rootCell);
+        rootCell->circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
+        if(counter%saveIntervall==0) {
             save_Iteration(file);
+            fflush(file);
+        }
 
     }
     clock_t end = clock();
     double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
     printf("Time per Iteration: %f\n", time_spent/count);
-
     fclose(file);
-
-
+    exit(0);
 }
-
-
 
 void move(int circle_id) {
     struct Circle* circle = &circles[circle_id];
@@ -212,9 +205,7 @@ void deleteTree(struct Cell* cell) {
 }
 
 bool isCircleInCellArea(int circle_id, struct Cell cell) {
-    struct Circle circle = circles[circle_id];
-
-    return circle.posX + circleSize > cell.cellWidth && circle.posX < cell.posX + cell.cellWidth && circle.posY + circleSize > cell.posY && circle.posY < cell.posY + cell.cellHeight;
+    return circles[circle_id].posX + circleSize / 2 > cell.cellWidth && circles[circle_id].posX - circleSize / 2 < cell.posX + cell.cellWidth && circles[circle_id].posY + circleSize / 2 > cell.posY && circles[circle_id].posY - circleSize / 2 < cell.posY + cell.cellHeight;
 }
 
 void split(struct Cell* cell) {
@@ -227,7 +218,6 @@ void split(struct Cell* cell) {
     for (int i = 0; i < 4; i++) {
         cell->subCells[i].cellWidth = cell->cellWidth / 2;
         cell->subCells[i].cellHeight = cell->cellHeight / 2;
-        cell->subCells[i].depth = cell->depth + 1;
         cell->subCells[i].isLeaf = true;
         cell->subCells[i].numCirclesInCell = 0;
         cell->subCells[i].circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
@@ -253,9 +243,11 @@ void addCircleToCell(int circle_id, struct Cell* cell, bool checkCollision) {
         return;
     }
 
-    if (cell->numCirclesInCell < maxCirclesPerCell) {
+    if (cell->numCirclesInCell < maxCirclesPerCell  || cell->cellWidth < 4*circleSize || cell->cellHeight < 4*circleSize) {
         if(checkCollision)
             checkCollisions(circle_id, cell);
+        if (cell->numCirclesInCell >= maxCirclesPerCell)
+            cell->circle_ids = (int*)realloc(cell->circle_ids, (cell->numCirclesInCell + 1) * sizeof(int));
         cell->circle_ids[cell->numCirclesInCell] = circle_id;
         cell->numCirclesInCell++;
         return;
@@ -264,7 +256,7 @@ void addCircleToCell(int circle_id, struct Cell* cell, bool checkCollision) {
     split(cell);
 
     for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < maxCirclesPerCell; j++) {
+        for (int j = 0; j < cell->numCirclesInCell; j++) {
             if (isCircleInCellArea(cell->circle_ids[j], cell->subCells[i])) {
                 addCircleToCell(cell->circle_ids[j], &cell->subCells[i], false);
             }
@@ -292,4 +284,3 @@ void save_Iteration(FILE* file) {
     }
     fprintf(file,"%s", " \n");
 }
-
