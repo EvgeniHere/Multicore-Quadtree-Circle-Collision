@@ -96,7 +96,7 @@ int main() {
             checkCollisions(i);
             move(i);
         }
-        MPI_Allgather(circles, h*4, MPI_DOUBLE, circles, h*4, MPI_DOUBLE, MPI_COMM_WORLD);
+        MPI_Allgather(&circles[world_rank*h], h*4, MPI_DOUBLE, circles, h*4, MPI_DOUBLE, MPI_COMM_WORLD);
 
         if(world_rank==0 && counter%saveIntervall==0) {
             save_Iteration(file);
