@@ -9,13 +9,16 @@
 #define SCREEN_WIDTH 1000
 #define SCREEN_HEIGHT 1000
 #define numCircles 1000
-#define circleSize 5.0f
+#define circleSize 1.0f
 #define maxCirclesPerCell 5
-#define maxSpeed 2.0f
+#define maxSpawnSpeed 2.0f
+#define maxSpeed 10.0f
 #define count 10000
 #define saveIntervall 1
 #define dt 0.1f
+#define gravity 0.01f
 
+int gravityState = 0;
 
 struct Circle {
     float posX;
@@ -53,12 +56,9 @@ float random_float(float min, float max);
 void save_Iteration(FILE* file);
 void checkCollisions(int circle_id, struct Cell* cell);
 
-int mouseX = 0, mouseY = 0;
-
 void mouseClick(int button, int state, int x, int y) {
     if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-        mouseX = x;
-        mouseY = y;
+        gravityState = (gravityState + 1) % 2;
     }
 }
 
@@ -113,7 +113,7 @@ void display() {
         drawCircle(centerX, centerY, radius, numSides);
     }
 
-    //drawTree(rootCell);
+    drawTree(rootCell);
 
     glutSwapBuffers();
 }
@@ -158,8 +158,8 @@ int main(int argc, char** argv) {
     for (int i = 0; i < numCircles; i++) {
         circles[i].posX = random_float(circleSize/2, SCREEN_WIDTH-circleSize/2);
         circles[i].posY = random_float(circleSize/2, SCREEN_HEIGHT-circleSize/2);
-        circles[i].velX = random_float(-maxSpeed, maxSpeed);
-        circles[i].velY = random_float(-maxSpeed, maxSpeed);
+        circles[i].velX = random_float(-maxSpawnSpeed, maxSpawnSpeed);
+        circles[i].velY = random_float(-maxSpawnSpeed, maxSpawnSpeed);
     }
 
     glutInit(&argc, argv);
@@ -209,6 +209,9 @@ void move(int circle_id) {
         circle->posY = circleSize/2 ;
         circle->velY *= -1;
     }
+
+    if (gravityState == 1)
+        circle->velY -= gravity;
 
     circle->posX += circle->velX * dt;
     circle->posY += circle->velY * dt;
