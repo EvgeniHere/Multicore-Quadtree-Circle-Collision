@@ -4,17 +4,21 @@
 #include <math.h>
 #include <stdbool.h>
 #include <mpi/mpi.h>
+#include <GL/glut.h>
+#include <GL/gl.h>
 
-#define SCREEN_WIDTH 20
+
+#define SCREEN_WIDTH 30
 #define SCREEN_HEIGHT 20
-#define numCircles ((SCREEN_HEIGHT - 2) / 2 * (SCREEN_WIDTH - 2) / 2)
-#define circleSize 1.0
+#define spaceBetweenCircles 2
+#define numCircles ((SCREEN_HEIGHT - spaceBetweenCircles) / spaceBetweenCircles * (SCREEN_WIDTH - spaceBetweenCircles) / spaceBetweenCircles)
+#define circleSize 0.5f
 #define maxCirclesPerCell 5
-#define maxSpeed 1.0
+#define maxSpeed 1.0f
 #define force 10.0
 #define count 100
 #define saveIntervall 1
-#define dt 0.1
+#define dt 0.1f
 
 
 struct Circle {
@@ -25,8 +29,9 @@ struct Circle {
 };
 
 struct Circle* circles;
-
-
+FILE* file;
+int world_size;
+int world_rank;
 
 void move(int circle_id);
 
@@ -34,21 +39,27 @@ int random_int(int min, int max);
 double random_double(double min, double max);
 void save_Iteration(FILE* file);
 void checkCollisions(int circle_id);
+void display();
+void update(int counter);
+void drawCircle(GLdouble centerX, GLdouble centerY, GLdouble radius);
 
-int main() {
+void mouseClick(int button, int state, int x, int y) {
+    MPI_Finalize();
+    exit(0);
+}
+
+
+int main(int argc, char** argv) {
     MPI_Init(NULL, NULL);
 
     // Get the number of processes
-    int world_size;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
     // Get the rank of the process
-    int world_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
-    FILE *file;
     if(world_rank==0) {
-         file = fopen("../data.txt", "w");
+        file = fopen("../data.txt", "w");
         if(file == NULL) {
             printf("Error!");
             MPI_Abort(MPI_COMM_WORLD, 1);
@@ -60,15 +71,15 @@ int main() {
 
     //circles =  (struct Circle*)malloc( numCircles * sizeof(struct Circle));
 
-    srand(20);
+    srand(time(NULL));
     circles = malloc(numCircles * sizeof(struct Circle));
 
     if(world_rank==0) {
         printf("Circle Size: %d\nNum. Circles: %d\n", (int)circleSize, numCircles);
         fprintf(file, "%d %d %d %d %d\n", SCREEN_WIDTH, SCREEN_HEIGHT, numCircles, (int)circleSize, count/saveIntervall);
         int i = 0;
-        for (int x = 2; x <= SCREEN_WIDTH - 2; x += 2) {
-            for (int y = 2; y <= SCREEN_HEIGHT - 2; y += 2) {
+        for (int x = spaceBetweenCircles; x <= SCREEN_WIDTH - spaceBetweenCircles; x += spaceBetweenCircles) {
+            for (int y = spaceBetweenCircles; y <= SCREEN_HEIGHT - spaceBetweenCircles; y += spaceBetweenCircles) {
                 circles[i].posX = x;
                 circles[i].posY = y;
                 circles[i].velX = random_double(-1.0, 1.0);
@@ -78,41 +89,88 @@ int main() {
         }
     }
     MPI_Bcast(circles, numCircles*4, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    /*
+    double h = numCircles / (double)world_size;
+    if(world_rank==0) {
+        glutInit(&argc, argv);
+        glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
+        glutInitWindowSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+        glutCreateWindow("Bouncing Circles");
+        glutDisplayFunc(display);
+        glutTimerFunc(16, update, 0);
+        glutMouseFunc(mouseClick);
+        glutMainLoop();
+    }
+    else {
+        while(true) {
+            for (int i = floor(world_rank * h); i < ceil((world_rank + 1) * h); i++) {
+                checkCollisions(i);
+                move(i);
+            }
+            MPI_Allgather(&circles[(int)(world_rank * h)], (int)h * 4, MPI_DOUBLE, circles, (int)h * 4, MPI_DOUBLE, MPI_COMM_WORLD);
+        }
+    }
 
-    for (int i = 0; i < numCircles; i++) {
-        circles[i].posX = random_double(circleSize/2, SCREEN_WIDTH-circleSize/2);
-        circles[i].posY = random_double(circleSize/2, SCREEN_HEIGHT-circleSize/2);
-        circles[i].velX = random_double(-1.0, 1.0);
-        circles[i].velY = random_double(-1.0, 1.0);
-    }*/
+    //TODO Exit
     if(world_rank==0) {
         save_Iteration(file);
     }
-    clock_t begin = clock();
-    int h = numCircles/world_size;
-    for (int counter = 0; counter < count; counter++) {
-        for (int i = world_rank*h; i < (world_rank+1)*h; i++) {
-            checkCollisions(i);
-            move(i);
-        }
-        MPI_Allgather(&circles[world_rank*h], h*4, MPI_DOUBLE, circles, h*4, MPI_DOUBLE, MPI_COMM_WORLD);
-
-        if(world_rank==0 && counter%saveIntervall==0) {
-            save_Iteration(file);
-            fflush(file);
-        }
-
-    }
     if(world_rank==0) {
-        clock_t end = clock();
-        double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-        printf("Time per Iteration: %f\n", time_spent/count);
         fclose(file);
     }
     MPI_Finalize();
     exit(0);
 }
+void drawCircle(GLdouble centerX, GLdouble centerY, GLdouble radius) {
+    GLdouble angleIncrement = 2.0 * M_PI / 32;
+    glBegin(GL_POLYGON);
+    for (int i = 0; i < 32; i++) {
+        GLdouble angle = i * angleIncrement;
+        GLdouble x = centerX + radius * cos(angle);
+        GLdouble y = centerY + radius * sin(angle);
+        glVertex2d(x, y);
+    }
+    glEnd();
+}
+
+
+void display() {
+    glClear(GL_COLOR_BUFFER_BIT);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluOrtho2D(0, SCREEN_WIDTH, 0, SCREEN_HEIGHT); // Set up an orthographic projection
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    // Draw three circles at different positions
+    for (int i = 0; i < numCircles; i++) {
+        GLdouble centerX = circles[i].posX;
+        GLdouble centerY = circles[i].posY;
+        GLdouble radius = circleSize;
+        drawCircle(centerX, centerY, radius);
+    }
+
+    glutSwapBuffers();
+}
+
+void update(int counter) {
+    int h = numCircles / world_size;
+    for (int i = world_rank * h; i < (world_rank + 1) * h; i++) {
+        checkCollisions(i);
+        move(i);
+    }
+    MPI_Allgather(&circles[world_rank * h], h * 4, MPI_DOUBLE, circles, h * 4, MPI_DOUBLE, MPI_COMM_WORLD);
+    if (world_rank == 0 && counter % saveIntervall == 0) {
+        save_Iteration(file);
+        fflush(file);
+    }
+    glutPostRedisplay();
+    glutTimerFunc(16, update, counter + 1);
+
+    //if (counter % saveIntervall == 0)
+    //    save_Iteration(file);
+
+}
+
 
 void move(int circle_id) {
     struct Circle* circle = &circles[circle_id];
@@ -146,49 +204,41 @@ void move(int circle_id) {
 }
 
 void checkCollisions(int circle_id) {
-    struct Circle* circle1 = &circles[circle_id];
-    double midX1 = circle1->posX;
-    double midY1 = circle1->posY;
-
     for (int j = 0; j < numCircles; j++) {
-        /*
-        struct Circle* circle2 = &circles[cell->circle_ids[i]];
-        double midX2 = circle2->posX;
-        double midY2 = circle2->posX;
-
-        double a = midX2 - midX1;
-        double b = midY2 - midY1;
-        double c = sqrt(a*a + b*b);
-
-        if (c > circleSize)
-            continue;
-
-        double angle = atan2(b, a);
-        double targetX = midX1 + cos(angle) * circleSize;
-        double targetY = midY1 + sin(angle) * circleSize;
-        double ax = (targetX - midX2);
-        double ay = (targetY - midY2);
-
-        circles[circle_id].velX -= ax * force;
-        circles[circle_id].velY -= ay * force;
-        circles[cell->circle_ids[i]].velX += ax * force;
-        circles[cell->circle_ids[i]].velY += ay * force;
-        */
         if(j == circle_id)
             continue;
-        double d = sqrt((circles[circle_id].posX - circles[j].posX)*(circles[circle_id].posX - circles[j].posX)  + (circles[circle_id].posY - circles[j].posY)*(circles[circle_id].posY - circles[j].posY));
-        if(d > circleSize)
-            continue;
 
-        double nx = (circles[j].posX - circles[circle_id].posX) / d;
-        double ny = (circles[j].posY - circles[circle_id].posY) / d;
-        double p = 2 * (circles[circle_id].velX * nx + circles[circle_id].velY * ny - circles[j].velX * nx -
-                circles[j].velY * ny);// / (bowl[id].mass + bowl[j].mass);
-        circles[circle_id].velX += -p * nx;
-        circles[circle_id].velY += -p * ny;
-        circles[j].velX += p * nx;
-        circles[j].velY += p * ny;
+        double dist = sqrt(
+                pow(circles[j].posX - circles[circle_id].posX, 2) + pow(circles[j].posY - circles[circle_id].posY, 2));
+        double sum_r = circleSize * 2;
 
+        if (dist < sum_r) {
+            double d = dist - sum_r;
+            double dx = (circles[j].posX - circles[circle_id].posX) / dist;
+            double dy = (circles[j].posY - circles[circle_id].posY) / dist;
+
+            circles[circle_id].posX += d * dx;
+            circles[circle_id].posY += d * dy;
+            circles[j].posX -= d * dx;
+            circles[j].posY -= d * dy;
+
+            double v1x = circles[circle_id].velX;
+            double v1y = circles[circle_id].velY;
+            double v2x = circles[j].velX;
+            double v2y = circles[j].velY;
+
+            double v1x_new = v1x - 2 * circleSize / sum_r * (v1x * dx + v1y * dy - v2x * dx - v2y * dy) * dx;
+            double v1y_new = v1y - 2 * circleSize / sum_r * (v1x * dx + v1y * dy - v2x * dx - v2y * dy) * dy;
+            double v2x_new = v2x - 2 * circleSize / sum_r * (v2x * dx + v2y * dy - v1x * dx - v1y * dy) * dx;
+            double v2y_new = v2y - 2 * circleSize / sum_r * (v2x * dx + v2y * dy - v1x * dx - v1y * dy) * dy;
+
+            circles[circle_id].velX = v1x_new;
+            circles[circle_id].velY = v1y_new;
+            circles[j].velX = v2x_new;
+            circles[j].velY = v2y_new;
+
+
+        }
     }
 }
 
