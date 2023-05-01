@@ -8,8 +8,8 @@
 
 #define SCREEN_WIDTH 1000
 #define SCREEN_HEIGHT 1000
-#define numCircles 10
-#define circleSize 50.0f
+#define numCircles 1000
+#define circleSize 5.0f
 #define maxCirclesPerCell 5
 #define maxSpeed 4.0f
 #define count 10000
@@ -113,8 +113,8 @@ void update(int counter) {
     glutPostRedisplay();
     glutTimerFunc(16, update, counter + 1);
 
-    if (counter % saveIntervall == 0)
-        save_Iteration(file);
+    //if (counter % saveIntervall == 0)
+        //save_Iteration(file);
 }
 
 int main(int argc, char** argv) {
@@ -227,7 +227,7 @@ void checkCollisions(int circle_id, struct Cell* cell) {
 
             circles[circle_id].velX = v1x_new;
             circles[circle_id].velY = v1y_new;
-            circles[j].velX= v2x_new;
+            circles[j].velX = v2x_new;
             circles[j].velY = v2y_new;
 
             //circles[circle_id].posX += circles[circle_id].velX;
