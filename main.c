@@ -3,38 +3,45 @@
 #include <time.h>
 #include <math.h>
 #include <stdbool.h>
+#include <GL/glut.h>
+#include <GL/gl.h>
 
 #define SCREEN_WIDTH 1000
 #define SCREEN_HEIGHT 1000
-#define numCircles 1000 //((SCREEN_HEIGHT - 2) / 2 * (SCREEN_WIDTH - 2) / 2)
-#define circleSize 5.0
+#define numCircles 10000
+#define circleSize 1.0f
 #define maxCirclesPerCell 5
-#define maxSpeed 4.0
-#define force 10.0
-#define count 100
+#define maxSpeed 4.0f
+#define count 10000
 #define saveIntervall 1
-#define dt 0.1
+#define dt 0.1f
 
 
 struct Circle {
-    double posX;
-    double posY;
-    double velX;
-    double velY;
+    float posX;
+    float posY;
+    float velX;
+    float velY;
 };
 
 struct Circle circles[numCircles];
 
 struct Cell {
-    double posX;
-    double posY;
-    double cellWidth;
-    double cellHeight;
+    float posX;
+    float posY;
+    float cellWidth;
+    float cellHeight;
     int numCirclesInCell;
     bool isLeaf;
     int* circle_ids;
     struct Cell* subCells;
 };
+
+struct Cell* rootCell;
+
+FILE* file;
+
+// Define the number of sides of the polygon used to approximate the circle
 
 void move(int circle_id);
 void addCircleToCell(int circle_id, struct Cell* cell, bool checkCollision);
@@ -42,71 +49,121 @@ void deleteTree(struct Cell* cell);
 bool isCircleInCellArea(int circle_id, struct Cell cell);
 void split(struct Cell* cell);
 int random_int(int min, int max);
-double random_double(double min, double max);
+float random_float(float min, float max);
 void save_Iteration(FILE* file);
 void checkCollisions(int circle_id, struct Cell* cell);
 
-int main() {
-    FILE* file = fopen("../data.txt","w");
+void drawCircle(GLfloat centerX, GLfloat centerY, GLfloat radius, int numSides) {
+    GLfloat angleIncrement = 2.0 * M_PI / numSides;
+    glBegin(GL_POLYGON);
+    for (int i = 0; i < numSides; i++) {
+        GLfloat angle = i * angleIncrement;
+        GLfloat x = centerX + radius * cos(angle);
+        GLfloat y = centerY + radius * sin(angle);
+        glVertex2f(x, y);
+    }
+    glEnd();
+}
+
+void drawTree(struct Cell* cell) {
+    if (cell->isLeaf) {
+        glBegin(GL_LINE_LOOP);
+        glVertex2f(cell->posX, cell->posY); // bottom left corner
+        glVertex2f(cell->posX, cell->posY + cell->cellHeight); // top left corner
+        glVertex2f(cell->posX + cell->cellWidth, cell->posY + cell->cellHeight); // top right corner
+        glVertex2f(cell->posX + cell->cellWidth, cell->posY); // bottom right corner
+        glEnd();
+    } else {
+        for (int i = 0; i < 4; i++) {
+            drawTree(&cell->subCells[i]);
+        }
+    }
+}
+
+void display() {
+    glClear(GL_COLOR_BUFFER_BIT);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluOrtho2D(0, SCREEN_WIDTH, 0, SCREEN_HEIGHT); // Set up an orthographic projection
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    // Draw three circles at different positions
+    for (int i = 0; i < numCircles; i++) {
+        GLfloat centerX = circles[i].posX;
+        GLfloat centerY = circles[i].posY;
+        GLfloat radius = circleSize;
+        int numSides = 32;
+        drawCircle(centerX, centerY, radius, numSides);
+    }
+
+    //drawTree(rootCell);
+
+    glutSwapBuffers();
+}
+
+void update(int counter) {
+    deleteTree(rootCell);
+    rootCell->circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
+
+    for (int i = 0; i < numCircles; i++) {
+        addCircleToCell(i, rootCell, true);
+        move(i);
+    }
+    glutPostRedisplay();
+    glutTimerFunc(16, update, counter + 1);
+
+    if (counter % saveIntervall == 0)
+        save_Iteration(file);
+}
+
+int main(int argc, char** argv) {
+    file = fopen("../data.txt","w");
 
     if(file == NULL) {
         printf("Error!");
         exit(1);
     }
 
-    //circles =  (struct Circle*)malloc( numCircles * sizeof(struct Circle));
-
     srand(90);
 
-    struct Cell* rootCell = (struct Cell*)malloc(sizeof(struct Cell));
-    rootCell->cellWidth = (double) SCREEN_WIDTH;
-    rootCell->cellHeight = (double) SCREEN_HEIGHT;
+    rootCell = (struct Cell*)malloc(sizeof(struct Cell));
+    rootCell->posX = 0.0f;
+    rootCell->posY = 0.0f;
+    rootCell->cellWidth = (float) SCREEN_WIDTH;
+    rootCell->cellHeight = (float) SCREEN_HEIGHT;
     rootCell->isLeaf = true;
     rootCell->numCirclesInCell = 0;
-    rootCell->circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
+    //rootCell->circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
 
     printf("Flakesize: %f\nNum. Circles: %d\n", circleSize, numCircles);
     fprintf(file, "%d %d %d %d %d\n", SCREEN_WIDTH, SCREEN_HEIGHT, numCircles, (int)circleSize, count/saveIntervall);
 
-    /*
-    int i = 0;
-    for (int x = 2; x <= SCREEN_WIDTH-2; x+=2) {
-        for (int y = 2; y <= SCREEN_HEIGHT-2; y+=2) {
-            circles[i].posX = x;
-            circles[i].posY = y;
-            circles[i].velX = random_double(-1.0, 1.0);
-            circles[i].velY = random_double(-1.0, 1.0);
-            addCircleToCell(i, &rootCell, true);
-            i++;
-        }
-    }
-    */
-
     for (int i = 0; i < numCircles; i++) {
-        circles[i].posX = random_double(circleSize/2, SCREEN_WIDTH-circleSize/2);
-        circles[i].posY = random_double(circleSize/2, SCREEN_HEIGHT-circleSize/2);
-        circles[i].velX = random_double(-maxSpeed, maxSpeed);
-        circles[i].velY = random_double(-maxSpeed, maxSpeed);
+        circles[i].posX = random_float(circleSize/2, SCREEN_WIDTH-circleSize/2);
+        circles[i].posY = random_float(circleSize/2, SCREEN_HEIGHT-circleSize/2);
+        circles[i].velX = random_float(-maxSpeed, maxSpeed);
+        circles[i].velY = random_float(-maxSpeed, maxSpeed);
     }
+
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
+    glutInitWindowSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+    glutCreateWindow("Bouncing Circles");
+    glutDisplayFunc(display);
+    glutTimerFunc(16, update, 0);
+    glutMainLoop();
 
     save_Iteration(file);
     clock_t begin = clock();
-    for (int counter = 0; counter < count; counter++) {
-        for (int i = 0; i < numCircles; i++) {
-            addCircleToCell(i, rootCell, true);
-            move(i);
-        }
-        deleteTree(rootCell);
-        rootCell->circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
-        if(counter%saveIntervall==0)
-            save_Iteration(file);
-    }
 
     clock_t end = clock();
     double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
     printf("Time per Iteration: %f\n", time_spent/count);
 
     fclose(file);
+
+    return 0;
 }
 
 void move(int circle_id) {
@@ -142,20 +199,42 @@ void move(int circle_id) {
 
 void checkCollisions(int circle_id, struct Cell* cell) {
     for (int i = 0; i < cell->numCirclesInCell; i++) {
-        int j = cell->circle_ids[i];
-
-        double d = sqrt((circles[circle_id].posX - circles[j].posX)*(circles[circle_id].posX - circles[j].posX)  + (circles[circle_id].posY - circles[j].posY)*(circles[circle_id].posY - circles[j].posY));
-        if(d > circleSize)
+        if (cell->circle_ids[i] == circle_id)
             continue;
+        int j = cell->circle_ids[i];
+        float dist = (float) sqrt(pow(circles[j].posX - circles[circle_id].posX, 2) + pow(circles[j].posY - circles[circle_id].posY, 2));
+        float sum_r = circleSize * 2;
 
-        double nx = (circles[j].posX - circles[circle_id].posX) / d;
-        double ny = (circles[j].posY - circles[circle_id].posY) / d;
-        double p = 2 * (circles[circle_id].velX * nx + circles[circle_id].velY * ny - circles[j].velX * nx -
-                        circles[j].velY * ny);// / (bowl[id].mass + bowl[j].mass);
-        circles[circle_id].velX += -p * nx;
-        circles[circle_id].velY += -p * ny;
-        circles[j].velX += p * nx;
-        circles[j].velY += p * ny;
+        if (dist < sum_r) {
+            float d = dist - sum_r;
+            float dx = (circles[j].posX - circles[circle_id].posX) / dist;
+            float dy = (circles[j].posY - circles[circle_id].posY) / dist;
+
+            circles[circle_id].posX += d * dx;
+            circles[circle_id].posY += d * dy;
+            circles[j].posX -= d * dx;
+            circles[j].posY -= d * dy;
+
+            float v1x = circles[circle_id].velX;
+            float v1y = circles[circle_id].velY;
+            float v2x = circles[j].velX;
+            float v2y = circles[j].velY;
+
+            float v1x_new = v1x - 2 * circleSize / sum_r * (v1x * dx + v1y * dy - v2x * dx - v2y * dy) * dx;
+            float v1y_new = v1y - 2 * circleSize / sum_r * (v1x * dx + v1y * dy - v2x * dx - v2y * dy) * dy;
+            float v2x_new = v2x - 2 * circleSize / sum_r * (v2x * dx + v2y * dy - v1x * dx - v1y * dy) * dx;
+            float v2y_new = v2y - 2 * circleSize / sum_r * (v2x * dx + v2y * dy - v1x * dx - v1y * dy) * dy;
+
+            circles[circle_id].velX = v1x_new;
+            circles[circle_id].velY = v1y_new;
+            circles[j].velX= v2x_new;
+            circles[j].velY = v2y_new;
+
+            circles[circle_id].posX += circles[circle_id].velX;
+            circles[circle_id].posY += circles[circle_id].velY;
+            circles[i].posX += circles[i].velX;
+            circles[i].posY += circles[i].velY;
+        }
     }
 }
 
@@ -175,7 +254,7 @@ void deleteTree(struct Cell* cell) {
 }
 
 bool isCircleInCellArea(int circle_id, struct Cell cell) {
-    return circles[circle_id].posX + circleSize / 2 > cell.cellWidth && circles[circle_id].posX - circleSize / 2 < cell.posX + cell.cellWidth && circles[circle_id].posY + circleSize / 2 > cell.posY && circles[circle_id].posY - circleSize / 2 < cell.posY + cell.cellHeight;
+    return circles[circle_id].posX + circleSize / 2 > cell.posX && circles[circle_id].posX - circleSize / 2 < cell.posX + cell.cellWidth && circles[circle_id].posY + circleSize / 2 > cell.posY && circles[circle_id].posY - circleSize / 2 < cell.posY + cell.cellHeight;
 }
 
 void split(struct Cell* cell) {
@@ -209,7 +288,7 @@ void addCircleToCell(int circle_id, struct Cell* cell, bool checkCollision) {
     if (!cell->isLeaf) {
         for (int i = 0; i < 4; i++)
             if (isCircleInCellArea(circle_id, cell->subCells[i]))
-                addCircleToCell(circle_id, &cell->subCells[i], true);
+                addCircleToCell(circle_id, &cell->subCells[i], checkCollision);
         return;
     }
 
@@ -222,7 +301,6 @@ void addCircleToCell(int circle_id, struct Cell* cell, bool checkCollision) {
         cell->numCirclesInCell++;
         return;
     }
-
 
     split(cell);
 
@@ -245,8 +323,8 @@ int random_int(int min, int max) {
     return rand() % (max - min + 1) + min;
 }
 
-double random_double(double min, double max) {
-    return (max - min) * ( (double)rand() / (double)RAND_MAX ) + min;
+float random_float(float min, float max) {
+    return (max - min) * ( (float)rand() / (float)RAND_MAX ) + min;
 }
 
 void save_Iteration(FILE* file) {
