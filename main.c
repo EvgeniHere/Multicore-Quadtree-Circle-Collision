@@ -5,14 +5,15 @@
 #include <stdbool.h>
 #include <GL/glut.h>
 #include <GL/gl.h>
+#include <omp.h>
 
 #define SCREEN_WIDTH 1000
 #define SCREEN_HEIGHT 1000
-#define numCircles 1000
-#define circleSize 1.0f
+#define numCircles 500
+#define circleSize 10.0f
 #define maxCirclesPerCell 5
 #define maxSpawnSpeed 2.0f
-#define maxSpeed 10.0f
+#define maxSpeed 2.0f
 #define count 10000
 #define saveIntervall 1
 #define dt 0.1f
@@ -25,6 +26,7 @@ struct Circle {
     float posY;
     float velX;
     float velY;
+    int isUsed;
 };
 
 struct Circle circles[numCircles];
@@ -108,7 +110,9 @@ void display() {
     for (int i = 0; i < numCircles; i++) {
         GLfloat centerX = circles[i].posX;
         GLfloat centerY = circles[i].posY;
-        GLfloat radius = circleSize;
+        GLfloat radius = circleSize/2;
+        if (radius < 1.0f)
+            radius = 1.0f;
         int numSides = 32;
         drawCircle(centerX, centerY, radius, numSides);
     }
@@ -160,6 +164,7 @@ int main(int argc, char** argv) {
         circles[i].posY = random_float(circleSize/2, SCREEN_HEIGHT-circleSize/2);
         circles[i].velX = random_float(-maxSpawnSpeed, maxSpawnSpeed);
         circles[i].velY = random_float(-maxSpawnSpeed, maxSpawnSpeed);
+        circles[i].isUsed = 0;
     }
 
     glutInit(&argc, argv);
@@ -218,12 +223,19 @@ void move(int circle_id) {
 }
 
 void checkCollisions(int circle_id, struct Cell* cell) {
+    #pragma omp parallel for
     for (int i = 0; i < cell->numCirclesInCell; i++) {
         if (cell->circle_ids[i] == circle_id)
             continue;
         int j = cell->circle_ids[i];
+        if (fabs(circles[circle_id].posX - circles[j].posX) > circleSize || fabs(circles[circle_id].posY - circles[j].posY) > circleSize)
+            continue;
+        if (circles[circle_id].isUsed == 1 || circles[j].isUsed == 1)
+            continue;
+        circles[circle_id].isUsed = 1;
+        circles[j].isUsed = 1;
         float dist = (float) sqrt(pow(circles[j].posX - circles[circle_id].posX, 2) + pow(circles[j].posY - circles[circle_id].posY, 2));
-        float sum_r = circleSize * 2;
+        float sum_r = circleSize;
 
         if (dist < sum_r) {
             float d = dist - sum_r;
@@ -249,12 +261,10 @@ void checkCollisions(int circle_id, struct Cell* cell) {
             circles[circle_id].velY = v1y_new;
             circles[j].velX = v2x_new;
             circles[j].velY = v2y_new;
-
-            //circles[circle_id].posX += circles[circle_id].velX;
-            //circles[circle_id].posY += circles[circle_id].velY;
-            //circles[i].posX += circles[i].velX;
-            //circles[i].posY += circles[i].velY;
         }
+
+        circles[circle_id].isUsed = 0;
+        circles[j].isUsed = 0;
     }
 }
 
