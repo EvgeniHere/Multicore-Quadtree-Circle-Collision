@@ -6,13 +6,13 @@
 #include <GL/glut.h>
 #include <GL/gl.h>
 
-
-#define SCREEN_WIDTH 20
-#define SCREEN_HEIGHT 20
-#define numCircles ((SCREEN_HEIGHT - 2) / 2 * (SCREEN_WIDTH - 2) / 2)
-#define circleSize 0.2f
+#define SCREEN_WIDTH 1000
+#define SCREEN_HEIGHT 1000
+#define spaceBetweenCircles 200
+#define numCircles ((SCREEN_HEIGHT - spaceBetweenCircles) / spaceBetweenCircles * (SCREEN_WIDTH - spaceBetweenCircles) / spaceBetweenCircles)
+#define circleSize 50.0f
 #define maxCirclesPerCell 5
-#define maxSpeed 1.0f
+#define maxSpeed 40.0f
 #define force 10.0
 #define count 10
 #define saveIntervall 100
@@ -27,9 +27,7 @@ struct Circle {
 };
 
 struct Circle circles[numCircles];
-
 struct Cell* rootCell;
-
 FILE* file;
 
 
@@ -70,23 +68,23 @@ int main(int argc, char** argv) {
     srand(time(NULL));
 
     rootCell = (struct Cell*)malloc(sizeof(struct Cell));
+    rootCell->posX = 0.0f;
+    rootCell->posY = 0.0f;
     rootCell->cellWidth = (double) SCREEN_WIDTH;
     rootCell->cellHeight = (double) SCREEN_HEIGHT;
     rootCell->isLeaf = true;
     rootCell->numCirclesInCell = 0;
-    rootCell->circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
 
     printf("Circle Size: %d\nNum. Circles: %d\n", (int)circleSize, numCircles);
     fprintf(file, "%d %d %d %d %d\n", SCREEN_WIDTH, SCREEN_HEIGHT, numCircles, (int)circleSize, count/saveIntervall);
 
     int i = 0;
-    for (int x = 2; x <= SCREEN_WIDTH-2; x+=2) {
-        for (int y = 2; y <= SCREEN_HEIGHT-2; y+=2) {
+    for (int x = spaceBetweenCircles; x <= SCREEN_WIDTH-spaceBetweenCircles; x+=spaceBetweenCircles) {
+        for (int y = spaceBetweenCircles; y <= SCREEN_HEIGHT-spaceBetweenCircles; y+=spaceBetweenCircles) {
             circles[i].posX = x;
             circles[i].posY = y;
-            circles[i].velX = random_double(-1.0, 1.0);
-            circles[i].velY = random_double(-1.0, 1.0);
-            addCircleToCell(i, rootCell, true);
+            circles[i].velX = random_double(-maxSpeed, maxSpeed);
+            circles[i].velY = random_double(-maxSpeed, maxSpeed);
             i++;
         }
     }
@@ -103,10 +101,10 @@ int main(int argc, char** argv) {
     exit(0);
 }
 
-void drawCircle(GLdouble centerX, GLdouble centerY, GLdouble radius, int numSides) {
-    GLdouble angleIncrement = 2.0 * M_PI / numSides;
+void drawCircle(GLdouble centerX, GLdouble centerY, GLdouble radius) {
+    GLdouble angleIncrement = 2.0 * M_PI / 32;
     glBegin(GL_POLYGON);
-    for (int i = 0; i < numSides; i++) {
+    for (int i = 0; i < 32; i++) {
         GLdouble angle = i * angleIncrement;
         GLdouble x = centerX + radius * cos(angle);
         GLdouble y = centerY + radius * sin(angle);
@@ -143,8 +141,7 @@ void display() {
         GLdouble centerX = circles[i].posX;
         GLdouble centerY = circles[i].posY;
         GLdouble radius = circleSize;
-        int numSides = 32;
-        drawCircle(centerX, centerY, radius, numSides);
+        drawCircle(centerX, centerY, radius);
     }
 
     //drawTree(rootCell);
@@ -163,8 +160,8 @@ void update(int counter) {
     glutPostRedisplay();
     glutTimerFunc(16, update, counter + 1);
 
-    if (counter % saveIntervall == 0)
-        save_Iteration(file);
+    //if (counter % saveIntervall == 0)
+    //    save_Iteration(file);
 }
 
 
@@ -204,29 +201,29 @@ void checkCollisions(int circle_id, struct Cell* cell) {
         if (cell->circle_ids[i] == circle_id)
             continue;
         int j = cell->circle_ids[i];
-        float dist = (float) sqrt(
+        double dist = sqrt(
                 pow(circles[j].posX - circles[circle_id].posX, 2) + pow(circles[j].posY - circles[circle_id].posY, 2));
-        float sum_r = circleSize * 2;
+        double sum_r = circleSize * 2;
 
         if (dist < sum_r) {
-            float d = dist - sum_r;
-            float dx = (circles[j].posX - circles[circle_id].posX) / dist;
-            float dy = (circles[j].posY - circles[circle_id].posY) / dist;
+            double d = dist - sum_r;
+            double dx = (circles[j].posX - circles[circle_id].posX) / dist;
+            double dy = (circles[j].posY - circles[circle_id].posY) / dist;
 
             circles[circle_id].posX += d * dx;
             circles[circle_id].posY += d * dy;
             circles[j].posX -= d * dx;
             circles[j].posY -= d * dy;
 
-            float v1x = circles[circle_id].velX;
-            float v1y = circles[circle_id].velY;
-            float v2x = circles[j].velX;
-            float v2y = circles[j].velY;
+            double v1x = circles[circle_id].velX;
+            double v1y = circles[circle_id].velY;
+            double v2x = circles[j].velX;
+            double v2y = circles[j].velY;
 
-            float v1x_new = v1x - 2 * circleSize / sum_r * (v1x * dx + v1y * dy - v2x * dx - v2y * dy) * dx;
-            float v1y_new = v1y - 2 * circleSize / sum_r * (v1x * dx + v1y * dy - v2x * dx - v2y * dy) * dy;
-            float v2x_new = v2x - 2 * circleSize / sum_r * (v2x * dx + v2y * dy - v1x * dx - v1y * dy) * dx;
-            float v2y_new = v2y - 2 * circleSize / sum_r * (v2x * dx + v2y * dy - v1x * dx - v1y * dy) * dy;
+            double v1x_new = v1x - 2 * circleSize / sum_r * (v1x * dx + v1y * dy - v2x * dx - v2y * dy) * dx;
+            double v1y_new = v1y - 2 * circleSize / sum_r * (v1x * dx + v1y * dy - v2x * dx - v2y * dy) * dy;
+            double v2x_new = v2x - 2 * circleSize / sum_r * (v2x * dx + v2y * dy - v1x * dx - v1y * dy) * dx;
+            double v2y_new = v2y - 2 * circleSize / sum_r * (v2x * dx + v2y * dy - v1x * dx - v1y * dy) * dy;
 
             circles[circle_id].velX = v1x_new;
             circles[circle_id].velY = v1y_new;
@@ -253,7 +250,7 @@ void deleteTree(struct Cell* cell) {
 }
 
 bool isCircleInCellArea(int circle_id, struct Cell cell) {
-    return circles[circle_id].posX + circleSize / 2 > cell.cellWidth && circles[circle_id].posX - circleSize / 2 < cell.posX + cell.cellWidth && circles[circle_id].posY + circleSize / 2 > cell.posY && circles[circle_id].posY - circleSize / 2 < cell.posY + cell.cellHeight;
+    return circles[circle_id].posX + circleSize / 2 > cell.posX && circles[circle_id].posX - circleSize / 2 < cell.posX + cell.cellWidth && circles[circle_id].posY + circleSize / 2 > cell.posY && circles[circle_id].posY - circleSize / 2 < cell.posY + cell.cellHeight;
 }
 
 void split(struct Cell* cell) {
@@ -287,11 +284,11 @@ void addCircleToCell(int circle_id, struct Cell* cell, bool checkCollision) {
     if (!cell->isLeaf) {
         for (int i = 0; i < 4; i++)
             if (isCircleInCellArea(circle_id, cell->subCells[i]))
-                addCircleToCell(circle_id, &cell->subCells[i], false);
+                addCircleToCell(circle_id, &cell->subCells[i], checkCollision);
         return;
     }
 
-    if (cell->numCirclesInCell < maxCirclesPerCell  || cell->cellWidth < 4*circleSize || cell->cellHeight < 4*circleSize) {
+    if (cell->numCirclesInCell < maxCirclesPerCell || cell->cellWidth < 4*circleSize || cell->cellHeight < 4*circleSize) {
         if(checkCollision)
             checkCollisions(circle_id, cell);
         if (cell->numCirclesInCell >= maxCirclesPerCell)
