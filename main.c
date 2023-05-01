@@ -8,8 +8,8 @@
 
 #define SCREEN_WIDTH 1000
 #define SCREEN_HEIGHT 1000
-#define numCircles 10000
-#define circleSize 1.0f
+#define numCircles 10
+#define circleSize 50.0f
 #define maxCirclesPerCell 5
 #define maxSpeed 4.0f
 #define count 10000
@@ -230,10 +230,10 @@ void checkCollisions(int circle_id, struct Cell* cell) {
             circles[j].velX= v2x_new;
             circles[j].velY = v2y_new;
 
-            circles[circle_id].posX += circles[circle_id].velX;
-            circles[circle_id].posY += circles[circle_id].velY;
-            circles[i].posX += circles[i].velX;
-            circles[i].posY += circles[i].velY;
+            //circles[circle_id].posX += circles[circle_id].velX;
+            //circles[circle_id].posY += circles[circle_id].velY;
+            //circles[i].posX += circles[i].velX;
+            //circles[i].posY += circles[i].velY;
         }
     }
 }
