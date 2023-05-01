@@ -11,7 +11,7 @@
 #define numCircles 1000
 #define circleSize 5.0f
 #define maxCirclesPerCell 5
-#define maxSpeed 4.0f
+#define maxSpeed 2.0f
 #define count 10000
 #define saveIntervall 1
 #define dt 0.1f
@@ -53,16 +53,32 @@ float random_float(float min, float max);
 void save_Iteration(FILE* file);
 void checkCollisions(int circle_id, struct Cell* cell);
 
+int mouseX = 0, mouseY = 0;
+
+void mouseClick(int button, int state, int x, int y) {
+    if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
+        mouseX = x;
+        mouseY = y;
+    }
+}
+
 void drawCircle(GLfloat centerX, GLfloat centerY, GLfloat radius, int numSides) {
     GLfloat angleIncrement = 2.0 * M_PI / numSides;
-    glBegin(GL_POLYGON);
-    for (int i = 0; i < numSides; i++) {
-        GLfloat angle = i * angleIncrement;
-        GLfloat x = centerX + radius * cos(angle);
-        GLfloat y = centerY + radius * sin(angle);
-        glVertex2f(x, y);
+    if (circleSize <= 2.0f) {
+        glPointSize(circleSize);
+        glBegin(GL_POINTS);
+        glVertex2i(centerX, centerY); //Set pixel coordinates
+        glEnd();
+    } else {
+        glBegin(GL_POLYGON);
+        for (int i = 0; i < numSides; i++) {
+            GLfloat angle = i * angleIncrement;
+            GLfloat x = centerX + radius * cos(angle);
+            GLfloat y = centerY + radius * sin(angle);
+            glVertex2f(x, y);
+        }
+        glEnd();
     }
-    glEnd();
 }
 
 void drawTree(struct Cell* cell) {
@@ -152,6 +168,7 @@ int main(int argc, char** argv) {
     glutCreateWindow("Bouncing Circles");
     glutDisplayFunc(display);
     glutTimerFunc(16, update, 0);
+    glutMouseFunc(mouseClick);
     glutMainLoop();
 
     save_Iteration(file);
@@ -292,7 +309,7 @@ void addCircleToCell(int circle_id, struct Cell* cell, bool checkCollision) {
         return;
     }
 
-    if (cell->numCirclesInCell < maxCirclesPerCell || cell->cellWidth < 4*circleSize || cell->cellHeight < 4*circleSize) {
+    if (cell->numCirclesInCell < maxCirclesPerCell || cell->cellWidth < 5*circleSize || cell->cellHeight < 5*circleSize) {
         if(checkCollision)
             checkCollisions(circle_id, cell);
         if (cell->numCirclesInCell >= maxCirclesPerCell)
