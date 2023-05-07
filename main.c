@@ -10,18 +10,18 @@
 #define SCREEN_WIDTH 1000.0f
 #define SCREEN_HEIGHT 1000.0f
 #define numCircles 1000
-#define circleSize 5.0f
+#define circleSize 1.0f
 #define maxCirclesPerCell 8
 #define maxSpawnSpeed 1.0f
 #define maxSpeed 1.0f
 #define count 10000
 #define saveIntervall 1
-#define dt 1.0f
 #define gravity 0.1f
 
-int gravityState = 0; //Mouseclick ins Fenster
+bool gravityState = true; //Mouseclick ins Fenster
 bool drawCells = true; //Zeichnet tiefste Zellen des Baums
 int updateTime = 10;
+float dt = 0.5f;
 
 struct Circle {
     float posX;
@@ -66,11 +66,20 @@ void save_Iteration(FILE* file);
 void checkCollisions(struct Cell* cell);
 void updateCell(struct Cell* cell);
 void printTree(struct Cell* cell, int depth);
+void mouseWheel(int, int, int, int);
 
 void mouseClick(int button, int state, int x, int y) {
     if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-        gravityState = (gravityState + 1) % 2;
+        gravityState = !gravityState;
         printTree(rootCell, 0);
+    } else if (button == 4) {
+        dt += 0.1f;
+        printf("%f\n", dt);
+    } else if (button == 3) {
+        dt -= 0.1f;
+        if (dt < 0.1f)
+            dt = 0.1f;
+        printf("%f\n", dt);
     }
 }
 
@@ -235,7 +244,7 @@ void move(int circle_id) {
         circle->velY *= -1;
     }
 
-    if (gravityState == 1)
+    if (gravityState)
         circle->velY -= gravity;
 
     circle->posX += circle->velX * dt;
@@ -313,29 +322,31 @@ bool isFullCircleOutsideCellArea(int circle_id, struct Cell* cell) {
     return circles[circle_id].posX + circleSize / 2 < cell->posX || circles[circle_id].posX - circleSize / 2 > cell->posX + cell->cellWidth || circles[circle_id].posY + circleSize / 2 < cell->posY || circles[circle_id].posY - circleSize / 2 > cell->posY + cell->cellHeight;
 }
 
-void collapse(struct Cell* cell, int depthFromOrigin) {
-    if (cell->isLeaf || depthFromOrigin < 0)
+void collapse(struct Cell* cell) {
+    if (cell->isLeaf)
         return;
 
+    for (int i = 0; i < 4; i++) {
+        if (!cell->subCells[i].isLeaf)
+            collapse(&cell->subCells[i]);
+    }
+
     cell->numCirclesInCell = 0;
-    cell->circle_ids = (int*)malloc((maxCirclesPerCell + 1) * sizeof(int));
-    for (int i = 0; i < 4; i++)
-        if (cell->subCells[i].isLeaf) {
-            for (int j = 0; j < cell->subCells[i].numCirclesInCell; j++) {
-                if (cellContainsCircle(cell, cell->subCells[i].circle_ids[j]))
-                    continue;
-                cell->circle_ids[cell->numCirclesInCell] = cell->subCells[i].circle_ids[j];
-                cell->numCirclesInCell++;
-            }
-            free(cell->subCells[i].circle_ids);
-            cell->subCells[i].circle_ids = NULL;
-        } else
-            collapse(&cell->subCells[i], depthFromOrigin + 1);
+    cell->circle_ids = (int *) malloc((maxCirclesPerCell + 1) * sizeof(int));
+    for (int i = 0; i < 4; i++) {
+        if (!cell->subCells[i].isLeaf)
+            continue;
+        for (int j = 0; j < cell->subCells[i].numCirclesInCell; j++) {
+            if (cellContainsCircle(cell, cell->subCells[i].circle_ids[j]))
+                continue;
+            cell->circle_ids[cell->numCirclesInCell] = cell->subCells[i].circle_ids[j];
+            cell->numCirclesInCell++;
+        }
+        free(cell->subCells[i].circle_ids);
+        cell->subCells[i].circle_ids = NULL;
+    }
 
     cell->isLeaf = true;
-
-    if (depthFromOrigin > 0)
-        collapse(cell->parentCell, depthFromOrigin - 1);
 
     free(cell->subCells);
     cell->subCells = NULL;
@@ -453,7 +464,7 @@ void addCircleToParentCell(int circle_id, struct Cell* cell) {
 void updateCell(struct Cell* cell) {
     if (!cell->isLeaf) {
         if (cell->numCirclesInCell < maxCirclesPerCell) { // <=
-            collapse(cell, 0);
+            collapse(cell);
             updateCell(cell);
         } else {
             for (int i = 0; i < 4; i++)
@@ -461,7 +472,7 @@ void updateCell(struct Cell* cell) {
         }
         return;
     }
-    if (cell->numCirclesInCell > maxCirclesPerCell && !(cell->cellWidth < 10 * circleSize || cell->cellHeight < 10 * circleSize)) {
+    if (cell->numCirclesInCell >= maxCirclesPerCell && !(cell->cellWidth < 10 * circleSize || cell->cellHeight < 10 * circleSize)) {
         split(cell);
         updateCell(cell);
         return;
