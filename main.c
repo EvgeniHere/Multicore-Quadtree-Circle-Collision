@@ -60,7 +60,6 @@ bool addCircleToCell(int circle_id, struct Cell* cell);
 bool isCircleOverlappingCellArea(int circle_id, struct Cell* cell);
 bool isFullCircleOutsideCellArea(int circle_id, struct Cell* cell);
 void split(struct Cell* cell);
-int random_int(int min, int max);
 float random_float(float min, float max);
 void save_Iteration(FILE* file);
 void checkCollisions(struct Cell* cell);
@@ -183,7 +182,7 @@ int main(int argc, char** argv) {
     rootCell->isLeaf = true;
     rootCell->numCirclesInCell = 0;
     rootCell->parentCell = NULL;
-    rootCell->circle_ids = (int*)malloc((maxCirclesPerCell + 1) * sizeof(int));
+    rootCell->circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
     rootCell->subCells = NULL;
     //rootCell->subCell1 = NULL;
     //rootCell->subCell2 = NULL;
@@ -332,7 +331,7 @@ void collapse(struct Cell* cell) {
     }
 
     cell->numCirclesInCell = 0;
-    cell->circle_ids = (int *) malloc((maxCirclesPerCell + 1) * sizeof(int));
+    cell->circle_ids = (int*) malloc(maxCirclesPerCell * sizeof(int));
     for (int i = 0; i < 4; i++) {
         if (!cell->subCells[i].isLeaf)
             continue;
@@ -377,7 +376,7 @@ void split(struct Cell* cell) {
         cell->subCells[i].cellHeight = cell->cellHeight / 2;
         cell->subCells[i].isLeaf = true;
         cell->subCells[i].numCirclesInCell = 0;
-        cell->subCells[i].circle_ids = (int*)malloc((maxCirclesPerCell + 1) * sizeof(int));
+        cell->subCells[i].circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
         cell->subCells[i].parentCell = cell;
         cell->subCells[i].subCells = NULL;
         //cell->subCells[i].subCell1 = NULL;
@@ -395,7 +394,6 @@ void split(struct Cell* cell) {
 
     for (int i = 0; i < cell->numCirclesInCell; i++) {
         bool circleAdded = false;
-        struct Circle* circle = &circles[cell->circle_ids[i]];
         for (int j = 0; j < 4; j++) {
             if (!isCircleOverlappingCellArea(cell->circle_ids[i], &cell->subCells[j]))
                 continue;
@@ -465,14 +463,13 @@ void updateCell(struct Cell* cell) {
     if (!cell->isLeaf) {
         if (cell->numCirclesInCell < maxCirclesPerCell) { // <=
             collapse(cell);
-            updateCell(cell);
         } else {
             for (int i = 0; i < 4; i++)
                 updateCell(&cell->subCells[i]);
         }
         return;
     }
-    if (cell->numCirclesInCell >= maxCirclesPerCell && !(cell->cellWidth < 10 * circleSize || cell->cellHeight < 10 * circleSize)) {
+    if (cell->numCirclesInCell > maxCirclesPerCell && !(cell->cellWidth < 10 * circleSize || cell->cellHeight < 10 * circleSize)) {
         split(cell);
         updateCell(cell);
         return;
@@ -490,10 +487,6 @@ void updateCell(struct Cell* cell) {
         addCircleToParentCell(circle_id, cell->parentCell);
     }
     checkCollisions(cell);
-}
-
-int random_int(int min, int max) {
-    return rand() % (max - min + 1) + min;
 }
 
 float random_float(float min, float max) {
