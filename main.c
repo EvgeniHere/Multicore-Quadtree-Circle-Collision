@@ -10,7 +10,7 @@
 #define SCREEN_WIDTH 1000.0f
 #define SCREEN_HEIGHT 1000.0f
 #define numCircles 1000
-#define circleSize 1.0f
+#define circleSize 5.0f
 #define maxCirclesPerCell 8
 #define maxSpawnSpeed 1.0f
 #define maxSpeed 1.0f
@@ -21,6 +21,7 @@
 
 int gravityState = 0; //Mouseclick ins Fenster
 bool drawCells = true; //Zeichnet tiefste Zellen des Baums
+int updateTime = 10;
 
 struct Circle {
     float posX;
@@ -42,15 +43,10 @@ struct Cell {
     int* circle_ids;
     struct Cell* subCells;
     struct Cell* parentCell;
-    struct Cell* subCell1;
-    struct Cell* subCell2;
-    struct Cell* subCell3;
-    struct Cell* subCell4;
-};
-
-struct Array {
-    int length;
-    int* values;
+    //struct Cell* subCell1;
+    //struct Cell* subCell2;
+    //struct Cell* subCell3;
+    //struct Cell* subCell4;
 };
 
 struct Cell* rootCell;
@@ -61,7 +57,6 @@ FILE* file;
 
 void move(int circle_id);
 bool addCircleToCell(int circle_id, struct Cell* cell);
-void deleteTree(struct Cell* cell);
 bool isCircleOverlappingCellArea(int circle_id, struct Cell* cell);
 bool isFullCircleOutsideCellArea(int circle_id, struct Cell* cell);
 void split(struct Cell* cell);
@@ -133,10 +128,9 @@ void display() {
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     gluOrtho2D(0, SCREEN_WIDTH, 0, SCREEN_HEIGHT); // Set up an orthographic projection
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
+    //glMatrixMode(GL_MODELVIEW); // WIRD DAS GEBRAUCHT???
+    //glLoadIdentity();
 
-    // Draw three circles at different positions
     for (int i = 0; i < numCircles; i++) {
         GLfloat centerX = circles[i].posX;
         GLfloat centerY = circles[i].posY;
@@ -146,22 +140,20 @@ void display() {
         int numSides = 32;
         drawCircle(centerX, centerY, radius, numSides);
     }
-    //printTree(rootCell, 0);
+
     drawTree(rootCell);
 
     glutSwapBuffers();
 }
 
 void update(int counter) {
-    updateCell(rootCell);
     for (int i = 0; i < numCircles; i++) {
         move(i);
     }
-    glutPostRedisplay();
-    glutTimerFunc(16, update, counter + 1);
-
-    //if (counter % saveIntervall == 0)
-        //save_Iteration(file);
+    updateCell(rootCell);
+    if (counter%2==0)
+        glutPostRedisplay();
+    glutTimerFunc(updateTime, update, counter + 1);
 }
 
 int main(int argc, char** argv) {
@@ -184,10 +176,10 @@ int main(int argc, char** argv) {
     rootCell->parentCell = NULL;
     rootCell->circle_ids = (int*)malloc((maxCirclesPerCell + 1) * sizeof(int));
     rootCell->subCells = NULL;
-    rootCell->subCell1 = NULL;
-    rootCell->subCell2 = NULL;
-    rootCell->subCell3 = NULL;
-    rootCell->subCell4 = NULL;
+    //rootCell->subCell1 = NULL;
+    //rootCell->subCell2 = NULL;
+    //rootCell->subCell3 = NULL;
+    //rootCell->subCell4 = NULL;
 
     printf("Flakesize: %f\nNum. Circles: %d\n", circleSize, numCircles);
     fprintf(file, "%f %f %d %d %d\n", SCREEN_WIDTH, SCREEN_HEIGHT, numCircles, (int)circleSize, count/saveIntervall);
@@ -256,8 +248,7 @@ void checkCollisions(struct Cell* cell) {
             checkCollisions(&cell->subCells[i]);
         return;
     }
-
-    for (int i = 0; i < cell->numCirclesInCell-1; i++) {
+    for (int i = 0; i < cell->numCirclesInCell - 1; i++) {
         int id_1 = cell->circle_ids[i];
         for (int j = i + 1; j < cell->numCirclesInCell; j++) {
             int id_2 = cell->circle_ids[j];
@@ -336,7 +327,8 @@ void collapse(struct Cell* cell, int depthFromOrigin) {
                 cell->circle_ids[cell->numCirclesInCell] = cell->subCells[i].circle_ids[j];
                 cell->numCirclesInCell++;
             }
-            free(cell->subCells[i].circle_ids); // cell->subCells[i].circle_ids = NULL;
+            free(cell->subCells[i].circle_ids);
+            cell->subCells[i].circle_ids = NULL;
         } else
             collapse(&cell->subCells[i], depthFromOrigin + 1);
 
@@ -347,12 +339,11 @@ void collapse(struct Cell* cell, int depthFromOrigin) {
 
     free(cell->subCells);
     cell->subCells = NULL;
-    cell->subCell1 = NULL;
-    cell->subCell2 = NULL;
-    cell->subCell3 = NULL;
-    cell->subCell4 = NULL;
+    //cell->subCell1 = NULL;
+    //cell->subCell2 = NULL;
+    //cell->subCell3 = NULL;
+    //cell->subCell4 = NULL;
 }
-
 
 void split(struct Cell* cell) {
     cell->subCells = (struct Cell*)malloc(4 * sizeof(struct Cell));
@@ -378,16 +369,16 @@ void split(struct Cell* cell) {
         cell->subCells[i].circle_ids = (int*)malloc((maxCirclesPerCell + 1) * sizeof(int));
         cell->subCells[i].parentCell = cell;
         cell->subCells[i].subCells = NULL;
-        cell->subCells[i].subCell1 = NULL;
-        cell->subCells[i].subCell2 = NULL;
-        cell->subCells[i].subCell3 = NULL;
-        cell->subCells[i].subCell4 = NULL;
+        //cell->subCells[i].subCell1 = NULL;
+        //cell->subCells[i].subCell2 = NULL;
+        //cell->subCells[i].subCell3 = NULL;
+        //cell->subCells[i].subCell4 = NULL;
     }
 
-    cell->subCell1 = &cell->subCells[0];
-    cell->subCell2 = &cell->subCells[1];
-    cell->subCell3 = &cell->subCells[2];
-    cell->subCell4 = &cell->subCells[3];
+    //cell->subCell1 = &cell->subCells[0];
+    //cell->subCell2 = &cell->subCells[1];
+    //cell->subCell3 = &cell->subCells[2];
+    //cell->subCell4 = &cell->subCells[3];
 
     int addedCircles = 0;
 
@@ -470,7 +461,7 @@ void updateCell(struct Cell* cell) {
         }
         return;
     }
-    if (cell->numCirclesInCell > maxCirclesPerCell && !(cell->cellWidth < 3 * circleSize || cell->cellHeight < 3 * circleSize)) {
+    if (cell->numCirclesInCell > maxCirclesPerCell && !(cell->cellWidth < 10 * circleSize || cell->cellHeight < 10 * circleSize)) {
         split(cell);
         updateCell(cell);
         return;
