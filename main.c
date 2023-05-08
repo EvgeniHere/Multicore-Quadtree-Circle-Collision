@@ -16,7 +16,7 @@
 #define maxSpeed 1.0f
 #define gravity 0.1f
 
-bool gravityState = false; //Mouseclick ins Fenster
+bool gravityState = true; //Mouseclick ins Fenster
 bool drawCells = true; //Zeichnet tiefste Zellen des Baums
 int updateTime = 30;
 float dt = 1.0f;
@@ -149,23 +149,15 @@ void display() {
 }
 
 void update(int counter) {
-    for (int i = 0; i < numCircles; i++) {
-        move(i);
+    while(true) {
+        for (int i = 0; i < numCircles; i++) {
+            move(i);
+        }
+        updateCell(rootCell);
     }
-    updateCell(rootCell);
-    glutPostRedisplay();
-
-    glutTimerFunc(updateTime, update, counter + 1);
 }
 
 int main(int argc, char** argv) {
-    file = fopen("../data.txt","w");
-
-    if(file == NULL) {
-        printf("Error!");
-        exit(1);
-    }
-
     srand(90);
 
     rootCell = (struct Cell*)malloc(sizeof(struct Cell));
@@ -204,20 +196,24 @@ int main(int argc, char** argv) {
         //updateCell(rootCell);
     }
 
-    glutInit(&argc, argv);
+    /*glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
     glutInitWindowSize(SCREEN_WIDTH, SCREEN_HEIGHT);
     glutCreateWindow("Bouncing Circles");
     glutDisplayFunc(display);
     glutTimerFunc(16, update, 0);
     glutMouseFunc(mouseClick);
-    glutMainLoop();
+    glutMainLoop();*/
+    update(0);
 
     return 0;
 }
 
 void move(int circle_id) {
     struct Circle* circle = &circles[circle_id];
+    if (gravityState)
+        circle->velY -= gravity;
+
     if (circle->velX > maxSpeed)
         circle->velX = maxSpeed;
     if (circle->velY > maxSpeed)
@@ -245,9 +241,6 @@ void move(int circle_id) {
         circle->posY = circleSize/2 - stepDistY;
         circle->velY *= -1;
     }
-
-    if (gravityState)
-        circle->velY -= gravity;
 
     circle->posX += circle->velX * dt;
     circle->posY += circle->velY * dt;
