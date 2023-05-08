@@ -1,11 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <math.h>
 #include <stdbool.h>
 #include <GL/glut.h>
 #include <GL/gl.h>
-#include <omp.h>
 
 #define SCREEN_WIDTH 1000.0f
 #define SCREEN_HEIGHT 1000.0f
@@ -16,7 +14,7 @@
 #define maxSpeed 1.0f
 #define gravity 0.1f
 
-bool gravityState = false; //Mouseclick ins Fenster
+bool gravityState = true; //Mouseclick ins Fenster
 bool drawCells = true; //Zeichnet tiefste Zellen des Baums
 int updateTime = 30;
 float dt = 1.0f;
@@ -202,6 +200,13 @@ int main(int argc, char** argv) {
     for (int i = 0; i < numCircles; i++) {
         addCircleToCell(i, rootCell);
         //updateCell(rootCell);
+    }
+
+    while(true) {
+        for (int i = 0; i < numCircles; i++) {
+            move(i);
+        }
+        updateCell(rootCell);
     }
 
     glutInit(&argc, argv);
