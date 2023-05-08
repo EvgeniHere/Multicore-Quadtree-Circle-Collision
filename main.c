@@ -437,7 +437,7 @@ bool addCircleToCell(int circle_id, struct Cell* cell) {
         if (cellContainsCircle(cell, circle_id))
             return false;
         if (cell->numCirclesInCell >= maxCirclesPerCell) {
-            cell->circle_ids = (int *) realloc(cell->circle_ids, (cell->numCirclesInCell + 1) * sizeof(int));
+            cell->circle_ids = (int *) realloc(cell->circle_ids, ((cell->numCirclesInCell) + 1) * sizeof(int));
             if (cell->circle_ids == NULL) {
                 printf("Memory error!");
                 exit(1);
@@ -445,15 +445,15 @@ bool addCircleToCell(int circle_id, struct Cell* cell) {
         }
         cell->circle_ids[cell->numCirclesInCell] = circle_id;
         circleAdded = true;
+        cell->numCirclesInCell++;
     } else {
         for (int i = 0; i < 4; i++) {
-            if (addCircleToCell(circle_id, &cell->subcells[i]))
+            if (addCircleToCell(circle_id, &cell->subcells[i])) {
                 circleAdded = true;
+                cell->numCirclesInCell++;
+            }
         }
     }
-
-    if (circleAdded)
-        cell->numCirclesInCell++;
 
     return circleAdded;
 }
