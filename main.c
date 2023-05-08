@@ -9,16 +9,16 @@
 
 #define SCREEN_WIDTH 1000.0f
 #define SCREEN_HEIGHT 1000.0f
-#define numCircles 100000
-#define circleSize 0.001f
+#define numCircles 1000
+#define circleSize 5.0f
 #define maxCirclesPerCell 5
 #define maxSpawnSpeed 1.0f
 #define maxSpeed 1.0f
 #define gravity 0.1f
 
 bool gravityState = false; //Mouseclick ins Fenster
-bool drawCells = false; //Zeichnet tiefste Zellen des Baums
-int updateTime = 16;
+bool drawCells = true; //Zeichnet tiefste Zellen des Baums
+int updateTime = 30;
 float dt = 1.0f;
 
 struct Circle {
@@ -50,8 +50,6 @@ struct Cell {
 struct Cell* rootCell;
 
 FILE* file;
-
-// Define the number of sides of the polygon used to approximate the circle
 
 void move(int circle_id);
 bool addCircleToCell(int circle_id, struct Cell* cell);
@@ -195,6 +193,7 @@ int main(int argc, char** argv) {
 
     for (int i = 0; i < numCircles; i++) {
         addCircleToCell(i, rootCell);
+        updateCell(rootCell);
     }
 
     glutInit(&argc, argv);
@@ -246,6 +245,20 @@ void move(int circle_id) {
     circle->posY += circle->velY * dt;
 }
 
+void checkPosition(struct Circle* circle) {
+    if (circle->posX + circleSize/2 > SCREEN_WIDTH) {
+        circle->posX = SCREEN_WIDTH - circleSize/2;
+    } else if (circle->posX - circleSize/2 < 0.0f) {
+        circle->posX = circleSize/2;
+    }
+
+    if (circle->posY + circleSize/2 > SCREEN_HEIGHT) {
+        circle->posY = SCREEN_HEIGHT - circleSize/2;
+    } else if (circle->posY - circleSize/2 < 0.0f) {
+        circle->posY = circleSize/2;
+    }
+}
+
 void checkCollisions(struct Cell* cell) {
     if (!cell->isLeaf) {
         for (int i = 0; i < 4; i++)
@@ -256,8 +269,8 @@ void checkCollisions(struct Cell* cell) {
         int id_1 = cell->circle_ids[i];
         for (int j = i + 1; j < cell->numCirclesInCell; j++) {
             int id_2 = cell->circle_ids[j];
-            if (fabs(circles[id_1].posX - circles[id_2].posX) > circleSize ||
-                fabs(circles[id_1].posY - circles[id_2].posY) > circleSize)
+            if (fabsf(circles[id_1].posX - circles[id_2].posX) > circleSize ||
+                fabsf(circles[id_1].posY - circles[id_2].posY) > circleSize)
                 continue;
             if (circles[id_1].isUsed == 1 || circles[id_2].isUsed == 1)
                 continue;
@@ -292,8 +305,10 @@ void checkCollisions(struct Cell* cell) {
                 circles[id_2].velX = v2x_new;
                 circles[id_2].velY = v2y_new;
             }
+            checkPosition(&circles[id_2]);
             circles[id_2].isUsed = 0;
         }
+        checkPosition(&circles[id_1]);
         circles[id_1].isUsed = 0;
     }
 }
@@ -317,7 +332,7 @@ bool isFullCircleOutsideCellArea(int circle_id, struct Cell* cell) {
     return circles[circle_id].posX + circleSize / 2 < cell->posX || circles[circle_id].posX - circleSize / 2 > cell->posX + cell->cellWidth || circles[circle_id].posY + circleSize / 2 < cell->posY || circles[circle_id].posY - circleSize / 2 > cell->posY + cell->cellHeight;
 }
 
-void collapse(struct Cell* cell) {
+void collapse(struct Cell* cell, struct Cell* originCell) {
     cell->isLeaf = true;
     cell->circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
     if (cell->circle_ids == NULL) {
@@ -328,20 +343,21 @@ void collapse(struct Cell* cell) {
     cell->numCirclesInCell = 0;
     for (int i = 0; i < 4; i++) {
         struct Cell* subcell = &cell->subcells[i];
-        if (!subcell->isLeaf) {
-            collapse(subcell);
-        } else {
-            for (int j = 0; j < subcell->numCirclesInCell; j++) {
-                int circle_id = subcell->circle_ids[j];
-                if (!cellContainsCircle(cell, circle_id)) {
-                    cell->circle_ids[cell->numCirclesInCell] = circle_id;
-                    cell->numCirclesInCell++;
-                }
-            }
-            free(subcell->circle_ids);
-            subcell->circle_ids = NULL;
+        if (!subcell->isLeaf)
+            collapse(subcell, originCell);
+        for (int j = 0; j < subcell->numCirclesInCell; j++) {
+            int circle_id = subcell->circle_ids[j];
+            if (cellContainsCircle(originCell, circle_id))
+                continue;
+            originCell->circle_ids[originCell->numCirclesInCell] = circle_id;
+            originCell->numCirclesInCell++;
         }
+        if (subcell->circle_ids == NULL)
+            continue;
+        free(subcell->circle_ids);
+        subcell->circle_ids = NULL;
     }
+
     free(cell->subcells);
     cell->subcells = NULL;
 }
@@ -462,7 +478,7 @@ int countCircles(struct Cell* cell) {
 void updateCell(struct Cell* cell) {
     if (!cell->isLeaf) {
         if (cell->numCirclesInCell < maxCirclesPerCell) {
-            collapse(cell);
+            collapse(cell, cell);
             updateCell(cell);
         } else {
             for (int i = 0; i < 4; i++) {
