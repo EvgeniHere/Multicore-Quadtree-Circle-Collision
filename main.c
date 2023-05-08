@@ -169,6 +169,10 @@ int main(int argc, char** argv) {
     srand(90);
 
     rootCell = (struct Cell*)malloc(sizeof(struct Cell));
+    if (rootCell == NULL) {
+        printf("Memory error!");
+        exit(1);
+    }
     rootCell->posX = 0.0f;
     rootCell->posY = 0.0f;
     rootCell->cellWidth = (float) SCREEN_WIDTH;
@@ -177,6 +181,10 @@ int main(int argc, char** argv) {
     rootCell->numCirclesInCell = 0;
     rootCell->parentCell = NULL;
     rootCell->circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
+    if (rootCell->circle_ids == NULL) {
+        printf("Memory error!");
+        exit(1);
+    }
     rootCell->subcells = NULL;
     //rootCell->subcell1 = NULL;
     //rootCell->subcell2 = NULL;
@@ -193,7 +201,7 @@ int main(int argc, char** argv) {
 
     for (int i = 0; i < numCircles; i++) {
         addCircleToCell(i, rootCell);
-        updateCell(rootCell);
+        //updateCell(rootCell);
     }
 
     glutInit(&argc, argv);
@@ -397,6 +405,10 @@ void split(struct Cell* cell) {
                 numCirclesToAdd++;
         }
         subcell->circle_ids = (int*)malloc(numCirclesToAdd * sizeof(int));
+        if (subcell->circle_ids == NULL) {
+            printf("Memory error!");
+            exit(1);
+        }
     }
 
     int addedCircles = 0;
@@ -425,7 +437,11 @@ bool addCircleToCell(int circle_id, struct Cell* cell) {
         if (cellContainsCircle(cell, circle_id))
             return false;
         if (cell->numCirclesInCell >= maxCirclesPerCell) {
-            cell->circle_ids = (int*) realloc(cell->circle_ids, (cell->numCirclesInCell + 1) * sizeof(int));
+            cell->circle_ids = (int *) realloc(cell->circle_ids, (cell->numCirclesInCell + 1) * sizeof(int));
+            if (cell->circle_ids == NULL) {
+                printf("Memory error!");
+                exit(1);
+            }
         }
         cell->circle_ids[cell->numCirclesInCell] = circle_id;
         circleAdded = true;
@@ -479,7 +495,7 @@ void updateCell(struct Cell* cell) {
     if (!cell->isLeaf) {
         if (cell->numCirclesInCell < maxCirclesPerCell) {
             collapse(cell, cell);
-            updateCell(cell);
+            //updateCell(cell);
         } else {
             for (int i = 0; i < 4; i++) {
                 updateCell(&cell->subcells[i]);
@@ -489,6 +505,12 @@ void updateCell(struct Cell* cell) {
         }
         return;
     }
+
+    if (cell->numCirclesInCell > maxCirclesPerCell && !(cell->cellWidth < 4 * circleSize || cell->cellHeight < 4 * circleSize)) {
+        split(cell);
+        return;
+    }
+
     for (int i = 0; i < cell->numCirclesInCell; i++) {
         if (isFullCircleInsideCellArea(cell->circle_ids[i], cell))
             continue;
@@ -503,9 +525,6 @@ void updateCell(struct Cell* cell) {
     }
 
     checkCollisions(cell);
-
-    if (cell->numCirclesInCell > maxCirclesPerCell && !(cell->cellWidth < 4 * circleSize || cell->cellHeight < 4 * circleSize))
-        split(cell);
 }
 
 float random_float(float min, float max) {
