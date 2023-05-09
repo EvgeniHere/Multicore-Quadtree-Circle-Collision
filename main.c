@@ -338,8 +338,15 @@ bool isFullCircleOutsideCellArea(int circle_id, struct Cell* cell) {
 }
 
 void collapse(struct Cell* cell, struct Cell* originCell) {
-    if(cell == originCell) {
-        cell->isLeaf = true;
+    if (cell == NULL)
+        return;
+
+    int originCellCircleNum;
+
+    if (cell == originCell) {
+        originCellCircleNum = cell->numCirclesInCell;
+        if (cell->isLeaf)
+            return;
         cell->numCirclesInCell = 0;
         cell->circle_ids = (int *) malloc(maxCirclesPerCell * sizeof(int));
         if (cell->circle_ids == NULL) {
@@ -348,37 +355,34 @@ void collapse(struct Cell* cell, struct Cell* originCell) {
         }
     }
 
-
-    for (int i = 0; i < 4; i++) {
-        struct Cell* subcell = &cell->subcells[i];
-        if (!subcell->isLeaf)
-            collapse(subcell, originCell);
-        else {
-            for (int j = 0; j < subcell->numCirclesInCell; j++) {
-                int circle_id = subcell->circle_ids[j];
-                if (cellContainsCircle(originCell, circle_id))
-                    continue;
-                if(originCell->numCirclesInCell >= maxCirclesPerCell)
-                    printf("WTF!\n");
-                else {
-                    originCell->circle_ids[originCell->numCirclesInCell] = circle_id;
-                    originCell->numCirclesInCell++;
-                }
+    if (cell->isLeaf) {
+        for (int i = 0; i < cell->numCirclesInCell; i++) {
+            int circle_id = cell->circle_ids[i];
+            if (cellContainsCircle(originCell, circle_id))
+                continue;
+            if(originCell->numCirclesInCell > maxCirclesPerCell)
+                printf("WTF!\n");
+            else {
+                originCell->circle_ids[originCell->numCirclesInCell] = circle_id;
+                originCell->numCirclesInCell++;
             }
         }
-        //if (subcell->circle_ids == NULL)
-        //    continue;
-        free(subcell->circle_ids);
-        subcell->circle_ids = NULL;
+        //free(cell->circle_ids);
+        //cell->circle_ids = NULL;
+    } else {
+        for (int i = 0; i < 4; i++) {
+            struct Cell* subcell = &cell->subcells[i];
+            collapse(subcell, originCell);
+        }
+        free(cell->subcells);
+        cell->subcells = NULL;
     }
 
-    free(cell->subcells);
-    cell->subcells = NULL;
+    if (cell == originCell)
+        cell->isLeaf = true;
 }
 
-
 void split(struct Cell* cell) {
-    cell->isLeaf = false;
     cell->subcells = (struct Cell*)malloc(4 * sizeof(struct Cell));
     if (cell->subcells == NULL) {
         printf("Memory error!");
@@ -408,14 +412,20 @@ void split(struct Cell* cell) {
         }
     }
 
-    for (int i = 0; i < 4; i++) {
-        struct Cell* subcell = &cell->subcells[i];
-        for (int j = 0; j < cell->numCirclesInCell; j++) {
-            int circle_id = cell->circle_ids[j];
-            addCircleToCell(circle_id, subcell);
+    int circlesAdded = 0;
+    bool circleAdded = false;
+    for (int j = 0; j < cell->numCirclesInCell; j++) {
+        int circle_id = cell->circle_ids[j];
+        for (int i = 0; i < 4; i++) {
+            struct Cell *subcell = &cell->subcells[i];
+            if (addCircleToCell(circle_id, subcell))
+                circleAdded = true;
         }
+        if (circleAdded)
+            circlesAdded++;
     }
 
+    cell->isLeaf = false;
     free(cell->circle_ids);
     cell->circle_ids = NULL;
     //cell->numCirclesInCell = addedCircles;
@@ -473,42 +483,48 @@ void addCircleToParentCell(int circle_id, struct Cell* cell) {
 }
 
 void updateCell(struct Cell* cell) {
-    if (!cell->isLeaf) {
-        if (cell->numCirclesInCell < maxCirclesPerCell) {
-            collapse(cell, cell);
-            //updateCell(cell);
-        } else {
-            for (int i = 0; i < 4; i++) {
-                updateCell(&cell->subcells[i]);
-                //if (cell->isLeaf)
-                //    return;
-            }
+    if (cell->isLeaf) {
+        if (cell->numCirclesInCell > maxCirclesPerCell && !(cell->cellWidth < 4 * circleSize || cell->cellHeight < 4 * circleSize)) {
+            split(cell);
+            updateCell(cell);
+            return;
         }
+
+        for (int i = 0; i < cell->numCirclesInCell; i++) {
+            if (isFullCircleInsideCellArea(cell->circle_ids[i], cell))
+                continue;
+            int circle_id = cell->circle_ids[i];
+            if (isFullCircleOutsideCellArea(circle_id, cell)) {
+                for (int j = i; j < cell->numCirclesInCell-1; j++) {
+                    cell->circle_ids[j] = cell->circle_ids[j + 1];
+                }
+                cell->numCirclesInCell--;
+                /*if (cell->numCirclesInCell > maxCirclesPerCell) {
+                    cell->circle_ids = (int *) realloc(cell->circle_ids, cell->numCirclesInCell * sizeof(int));
+                    if (cell->circle_ids == NULL)
+                        exit(1);
+                }*/
+            }
+            addCircleToParentCell(circle_id, cell);
+        }
+
         return;
     }
 
-    if (cell->numCirclesInCell > maxCirclesPerCell && !(cell->cellWidth < 4 * circleSize || cell->cellHeight < 4 * circleSize)) {
-        split(cell);
+    for (int i = 0; i < 4; i++) {
+        updateCell(&cell->subcells[i]);
+    }
+
+    if (cell->numCirclesInCell <= maxCirclesPerCell) {
+        collapse(cell, cell);
         //updateCell(cell);
-        return;
     }
 
-    for (int i = 0; i < cell->numCirclesInCell; i++) {
-        if (isFullCircleInsideCellArea(cell->circle_ids[i], cell))
-            continue;
-        int circle_id = cell->circle_ids[i];
-        if (isFullCircleOutsideCellArea(circle_id, cell)) {
-            for (int j = i; j < cell->numCirclesInCell-1; j++) {
-                cell->circle_ids[j] = cell->circle_ids[j + 1];
-            }
-            cell->numCirclesInCell--;
-        }
-        addCircleToParentCell(circle_id, cell);
-    }
-
-    //checkCollisions(cell);
+    checkCollisions(cell);
 }
 
 float random_float(float min, float max) {
     return (max - min) * ( (float)rand() / (float)RAND_MAX ) + min;
 }
+
+// Wenn Collapste Zellen neu gesplitted/circles hinzugefügt werden gibts probleme
