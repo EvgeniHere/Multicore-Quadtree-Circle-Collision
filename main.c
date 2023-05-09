@@ -342,7 +342,10 @@ bool isFullCircleOutsideCellArea(int circle_id, struct Cell* cell) {
     return circles[circle_id].posX + circleSize / 2 < cell->posX || circles[circle_id].posX - circleSize / 2 > cell->posX + cell->cellWidth || circles[circle_id].posY + circleSize / 2 < cell->posY || circles[circle_id].posY - circleSize / 2 > cell->posY + cell->cellHeight;
 }
 
-void collapse(struct Cell* cell, struct Cell* originCell) {
+void collapse(struct Cell* cell, struct Cell* originCell, int depth) {
+    for (int i = 0; i < depth; i++) {
+        printf("----");
+    }
     printf("collapse\n");
     if (cell == NULL)
         return;
@@ -378,7 +381,7 @@ void collapse(struct Cell* cell, struct Cell* originCell) {
     } else {
         for (int i = 0; i < 4; i++) {
             struct Cell* subcell = &cell->subcells[i];
-            collapse(subcell, originCell);
+            collapse(subcell, originCell, depth+1);
         }
         free(cell->subcells);
         cell->subcells = NULL;
@@ -541,7 +544,7 @@ void updateCell(struct Cell* cell, int depth) {
     }
 
     if (cell->numCirclesInCell <= maxCirclesPerCell) {
-        collapse(cell, cell);
+        collapse(cell, cell, depth);
         //updateCell(cell);
     }
 
