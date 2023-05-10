@@ -587,9 +587,9 @@ bool addCircleToCell(int circle_id, struct Cell* cell, int depth) {
             return false;
         }
         if (cell->numCirclesInCell >= maxCirclesPerCell) {
-            if (cell->numCirclesInCell > maxCirclesPerCell && !(cell->cellWidth < 2 * (circleSize + maxSpeed * dt) || cell->cellHeight < 4 * (circleSize + maxSpeed * dt))) {
+            if (!(cell->cellWidth < 2 * (circleSize + maxSpeed * dt) || cell->cellHeight < 4 * (circleSize + maxSpeed * dt))) {
                 split(cell, depth);
-
+                return addCircleToCell(circle_id, cell, depth);
             } else {
                 cell->circle_ids = (int *) realloc(cell->circle_ids, ((cell->numCirclesInCell) + 1) * sizeof(int));
                 if (cell->circle_ids == NULL) {
@@ -598,8 +598,9 @@ bool addCircleToCell(int circle_id, struct Cell* cell, int depth) {
                 }
             }
         }
-        cell->circle_ids[cell->numCirclesInCell] = circle_id;
-        printf("added to this");
+
+        cell->circle_ids[cell->numCirclesInCell++] = circle_id;
+        printf("added to this\n");
         circleAdded = true;
     } else {
         for (int i = 0; i < 4; i++) {
@@ -608,11 +609,13 @@ bool addCircleToCell(int circle_id, struct Cell* cell, int depth) {
                 printf("added to subcell %d : ", i);
             }
         }
-        if (circleAdded)
+        if (circleAdded) {
             printf("\n");
+            cell->numCirclesInCell++;
+        }
     }
-    if(circleAdded)
-        cell->numCirclesInCell++;
+    /*if(circleAdded)
+        cell->numCirclesInCell++;*/
 
     free(newCell->circle_ids);
     free(newCell);
@@ -678,6 +681,8 @@ void addCircleToParentCell(int circle_id, struct Cell* cell, int depth) {
         }
     } else {
         parentCell->numCirclesInCell--;
+        if (parentCell->numCirclesInCell <= maxCirclesPerCell)
+            collapse(parentCell, parentCell, depth);
         //if (parentCell->numCirclesInCell == 0)
             //printf("YO");
     }
@@ -724,14 +729,10 @@ void updateCell(struct Cell* cell, int depth) {
                 i--;
             }
             addCircleToParentCell(circle_id, cell, depth);
+            if (cell->circle_ids == NULL)
+                return;
         }
         cell->selected = circleInCell;
-
-        if (cell->numCirclesInCell > maxCirclesPerCell && !(cell->cellWidth < 2 * (circleSize + maxSpeed * dt) || cell->cellHeight < 4 * (circleSize + maxSpeed * dt))) {
-            split(cell, depth);
-            updateCell(cell, depth);
-            return;
-        }
 
         checkCollisions(cell, depth);
         return;
@@ -739,12 +740,8 @@ void updateCell(struct Cell* cell, int depth) {
 
     for (int i = 0; i < 4; i++) {
         updateCell(&cell->subcells[i], depth+1);
-    }
-
-    if (cell->numCirclesInCell <= maxCirclesPerCell) {
-        collapse(cell, cell, depth);
-        //updateCell(cell, depth);
-        //return;
+        if (cell->isLeaf)
+            return;
     }
 }
 
