@@ -7,8 +7,8 @@
 
 #define SCREEN_WIDTH 200.0f
 #define SCREEN_HEIGHT 200.0f
-#define numCircles 100
-#define circleSize 5.0f
+#define numCircles 15
+#define circleSize 20.0f
 #define maxCirclesPerCell 3
 #define maxSpawnSpeed 1.0f
 #define maxSpeed 1.0f
@@ -17,7 +17,7 @@
 bool gravityState = true; //Mouseclick ins Fenster
 bool drawCells = true; //Zeichnet tiefste Zellen des Baums
 float dt = 0.1f;
-int selectedCircle = 0;
+int selectedCircle = 1;
 int clearTimer = 100;
 
 struct Circle {
@@ -729,8 +729,6 @@ void updateCell(struct Cell* cell, int depth) {
                 i--;
             }
             addCircleToParentCell(circle_id, cell, depth);
-            if (cell->circle_ids == NULL)
-                return;
         }
         cell->selected = circleInCell;
 
