@@ -5,37 +5,38 @@
 #include <GL/glut.h>
 #include <GL/gl.h>
 
-#define SCREEN_WIDTH 300.0f
-#define SCREEN_HEIGHT 300.0f
-#define numCircles 100
-#define circleSize 5.0f
+#define SCREEN_WIDTH 1000.0
+#define SCREEN_HEIGHT 1000.0
+#define numCircles 1000
+#define circleSize 2.0
 #define maxCirclesPerCell 3
-#define maxSpawnSpeed 1.0f
-#define maxSpeed 1.0f
-#define gravity 0.1f
+#define maxSpawnSpeed 1.0
+#define maxSpeed 1.0
+#define gravity 0.01
 
 bool gravityState = true; //Mouseclick ins Fenster
 bool drawCells = true; //Zeichnet tiefste Zellen des Baums
-float dt = 0.1f;
+double dt = 1.0;
 int selectedCircle = 1;
 int clearTimer = 0;
-float friction = 0.8f;
+double friction = 1.0;
+double minCellSize = 2 * circleSize + maxSpeed;
 
 struct Circle {
-    float posX;
-    float posY;
-    float velX;
-    float velY;
+    double posX;
+    double posY;
+    double velX;
+    double velY;
     int isUsed;
 };
 
 struct Circle circles[numCircles];
 
 struct Cell {
-    float posX;
-    float posY;
-    float cellWidth;
-    float cellHeight;
+    double posX;
+    double posY;
+    double cellWidth;
+    double cellHeight;
     int numCirclesInCell;
     bool isLeaf;
     int* circle_ids;
@@ -48,12 +49,13 @@ struct Cell {
 struct Cell* rootCell;
 
 void move(int circle_id);
-bool addCircleToCell(int circle_id, struct Cell* cell, int depth);
+bool addCircleToCell(int circle_id, struct Cell* cell);
 bool isCircleOverlappingCellArea(int circle_id, struct Cell* cell);
-void split(struct Cell* cell, int depth);
+void split(struct Cell* cell);
+void splitAllSplittableCells(struct Cell* cell);
 float random_float(float min, float max);
-void checkCollisions(struct Cell* cell, int depth);
-void updateCell(struct Cell* cell, int depth);
+void checkCollisions(struct Cell* cell);
+void updateCell(struct Cell* cell);
 void printTree(struct Cell* cell, int depth);
 void deleteCircle(struct Cell* cell, int circle_id);
 void collapseAllCollapsableCells(struct Cell* cell);
@@ -186,12 +188,12 @@ void display() {
 }
 
 void update(int counter) {
-    for (int i = 0; i < numCircles; i++) {
+    for (int i = 0; i < numCircles; i++)
         move(i);
-    }
-    checkCollisions(rootCell, 0);
-    updateCell(rootCell, 0);
+    checkCollisions(rootCell);
     collapseAllCollapsableCells(rootCell);
+    splitAllSplittableCells(rootCell);
+    updateCell(rootCell);
     glutPostRedisplay();
     glutTimerFunc(50.0f/dt, update, counter + 1);
 }
@@ -228,8 +230,8 @@ int main(int argc, char** argv) {
     }
 
     for (int i = 0; i < numCircles; i++) {
-        addCircleToCell(i, rootCell, 0);
-        updateCell(rootCell, 0);
+        addCircleToCell(i, rootCell);
+        //updateCell(rootCell);
     }
 
     glutInit(&argc, argv);
@@ -263,18 +265,18 @@ void move(int circle_id) {
 
     if (circle->posX + circleSize/2 > SCREEN_WIDTH - stepDistX && circle->velX > 0.0f) {
         circle->posX = SCREEN_WIDTH - circleSize/2 - stepDistX;
-        circle->velX *= -1;
+        circle->velX *= -friction;
     } else if (circle->posX - circleSize/2 < -stepDistX && circle->velX < 0.0f) {
         circle->posX = circleSize/2 - stepDistX;
-        circle->velX *= -1;
+        circle->velX *= -friction;
     }
 
     if (circle->posY + circleSize/2 > SCREEN_HEIGHT - stepDistY && circle->velY > 0.0f) {
         circle->posY = SCREEN_HEIGHT - circleSize/2 - stepDistY;
-        circle->velY *= -1;
+        circle->velY *= -friction;
     } else if (circle->posY - circleSize/2 < -stepDistY && circle->velY < 0.0f) {
         circle->posY = circleSize/2 - stepDistY;
-        circle->velY *= -1;
+        circle->velY *= -friction;
     }
 
     circle->posX += circle->velX;
@@ -295,10 +297,10 @@ void checkPosition(struct Circle* circle) {
     }
 }
 
-void checkCollisions(struct Cell* cell, int depth) {
+void checkCollisions(struct Cell* cell) {
     if (!cell->isLeaf) {
         for (int i = 0; i < 4; i++)
-            checkCollisions(&cell->subcells[i], depth + 1);
+            checkCollisions(&cell->subcells[i]);
         return;
     }
 
@@ -308,8 +310,8 @@ void checkCollisions(struct Cell* cell, int depth) {
         for (int j = i + 1; j < cell->numCirclesInCell; j++) {
             int id_2 = cell->circle_ids[j];
 
-            if (fabsf(circles[id_1].posX - circles[id_2].posX) > circleSize ||
-                fabsf(circles[id_1].posY - circles[id_2].posY) > circleSize)
+            if (fabs(circles[id_1].posX - circles[id_2].posX) > circleSize ||
+                fabs(circles[id_1].posY - circles[id_2].posY) > circleSize)
                 continue;
 
             if (circles[id_1].isUsed == 1 || circles[id_2].isUsed == 1)
@@ -318,33 +320,37 @@ void checkCollisions(struct Cell* cell, int depth) {
             circles[id_1].isUsed = 1;
             circles[id_2].isUsed = 1;
 
-            float dx = circles[id_2].posX - circles[id_1].posX;
-            float dy = circles[id_2].posY - circles[id_1].posY;
-            float distSquared = dx * dx + dy * dy;
-            float sum_r = circleSize;
+            double dx = circles[id_2].posX - circles[id_1].posX;
+            double dy = circles[id_2].posY - circles[id_1].posY;
+            double distSquared = dx * dx + dy * dy;
+            double sum_r = circleSize;
 
             if (distSquared < sum_r * sum_r) {
-                float dist = sqrtf(distSquared);
-                float d = dist - sum_r;
-                dx /= dist;
-                dy /= dist;
+                if (distSquared < sum_r * sum_r) {
+                    double dist = sqrt(distSquared);
+                    double overlap = (sum_r - dist) / 2.0f;
+                    dx /= dist;
+                    dy /= dist;
 
-                circles[id_1].posX += d * dx;
-                circles[id_1].posY += d * dy;
-                circles[id_2].posX -= d * dx;
-                circles[id_2].posY -= d * dy;
+                    circles[id_1].posX -= overlap * dx;
+                    circles[id_1].posY -= overlap * dy;
+                    circles[id_2].posX += overlap * dx;
+                    circles[id_2].posY += overlap * dy;
 
-                float dot = (circles[id_2].velX - circles[id_1].velX) * dx + (circles[id_2].velY - circles[id_1].velY) * dy;
+                    double dvx = circles[id_2].velX - circles[id_1].velX;
+                    double dvy = circles[id_2].velY - circles[id_1].velY;
+                    double dot = dvx * dx + dvy * dy;
 
-                circles[id_1].velX += dot * dx;
-                circles[id_1].velY += dot * dy;
-                circles[id_2].velX -= dot * dx;
-                circles[id_2].velY -= dot * dy;
+                    circles[id_1].velX += dot * dx;
+                    circles[id_1].velY += dot * dy;
+                    circles[id_2].velX -= dot * dx;
+                    circles[id_2].velY -= dot * dy;
 
-                circles[id_1].velX *= friction;
-                circles[id_1].velY *= friction;
-                circles[id_2].velX *= friction;
-                circles[id_2].velY *= friction;
+                    circles[id_1].velX *= friction;
+                    circles[id_1].velY *= friction;
+                    circles[id_2].velX *= friction;
+                    circles[id_2].velY *= friction;
+                }
             }
 
             circles[id_2].isUsed = 0;
@@ -358,8 +364,6 @@ void checkCollisions(struct Cell* cell, int depth) {
         checkPosition(&circles[id]);
     }
 }
-
-
 
 bool cellContainsCircle(struct Cell* cell, int circle_id) {
     if (cell->isLeaf) {
@@ -445,7 +449,7 @@ void collapseAllCollapsableCells(struct Cell* cell) {
         collapse(cell, cell, 0);
 }
 
-void split(struct Cell* cell, int depth) {
+void split(struct Cell* cell) {
     cell->subcells = (struct Cell*)malloc(4 * sizeof(struct Cell));
     if (cell->subcells == NULL) {
         printf("Memory error!");
@@ -482,9 +486,11 @@ void split(struct Cell* cell, int depth) {
     for (int i = 0; i < cell->numCirclesInCell; i++) {
         bool circleAdded = false;
         int circle_id = cell->circle_ids[i];
+        if (!isCircleOverlappingCellArea(circle_id, cell))
+            continue;
         for (int j = 0; j < 4; j++) {
             struct Cell *subcell = &cell->subcells[j];
-            if (addCircleToCell(circle_id, subcell, depth+1))
+            if (addCircleToCell(circle_id, subcell))
                 circleAdded = true;
         }
         if (circleAdded)
@@ -497,7 +503,23 @@ void split(struct Cell* cell, int depth) {
     //cell->numCirclesInCell = circlesAdded;
 }
 
-bool addCircleToCell(int circle_id, struct Cell* cell, int depth) {
+void splitAllSplittableCells(struct Cell* cell) {
+    if (cell->isLeaf) {
+        if (cell->cellWidth <= minCellSize && cell->cellHeight <= minCellSize)
+            return;
+
+        if (cell->numCirclesInCell > maxCirclesPerCell) {
+            split(cell);
+            for (int i = 0; i < 4; i++)
+                splitAllSplittableCells(&cell->subcells[i]);
+        }
+    } else {
+        for (int i = 0; i < 4; i++)
+            splitAllSplittableCells(&cell->subcells[i]);
+    }
+}
+
+bool addCircleToCell(int circle_id, struct Cell* cell) {
     if (!isCircleOverlappingCellArea(circle_id, cell)) {
         return false;
     }
@@ -515,15 +537,15 @@ bool addCircleToCell(int circle_id, struct Cell* cell, int depth) {
         }
         cell->circle_ids[cell->numCirclesInCell] = circle_id;
         cell->numCirclesInCell++;
-        if (cell->cellWidth >= 2 * circleSize + maxSpeed || cell->cellHeight >= 2 * circleSize + maxSpeed)
-            split(cell, depth);
+        //if (cell->cellWidth >= minCellSize || cell->cellHeight >= minCellSize)
+        //    split(cell, depth);
         return true;
     }
 
     bool added = false;
     bool alreadyInsideCellArea = cellContainsCircle(cell, circle_id);
     for (int i = 0; i < 4; i++) {
-        if (addCircleToCell(circle_id, &cell->subcells[i], depth + 1)) {
+        if (addCircleToCell(circle_id, &cell->subcells[i])) {
             added = true;
         }
     }
@@ -536,7 +558,7 @@ bool addCircleToCell(int circle_id, struct Cell* cell, int depth) {
     return true;
 }
 
-void addCircleToParentCell(int circle_id, struct Cell* cell, int depth) {
+void addCircleToParentCell(int circle_id, struct Cell* cell) {
     if (cell == rootCell)
         return;
 
@@ -549,7 +571,7 @@ void addCircleToParentCell(int circle_id, struct Cell* cell, int depth) {
             }
             struct Cell* neighbourCell = &parentCell->subcells[i];
             if (isCircleOverlappingCellArea(circle_id, neighbourCell))
-                addCircleToCell(circle_id, neighbourCell, depth+1);
+                addCircleToCell(circle_id, neighbourCell);
         }
         if (isFullCircleInsideCellArea(circle_id, parentCell)) {
             deleteCircle(cell, circle_id);
@@ -559,10 +581,10 @@ void addCircleToParentCell(int circle_id, struct Cell* cell, int depth) {
         parentCell->numCirclesInCell--;
     }
 
-    addCircleToParentCell(circle_id, parentCell, depth-1);
+    addCircleToParentCell(circle_id, parentCell);
 }
 
-void updateCell(struct Cell* cell, int depth) {
+void updateCell(struct Cell* cell) {
     if (cell->isLeaf) {
         bool circleInCell = false;
         for (int i = 0; i < cell->numCirclesInCell; i++) {
@@ -573,7 +595,7 @@ void updateCell(struct Cell* cell, int depth) {
                 continue;
             }
             deleteCircle(cell, circle_id);
-            addCircleToParentCell(circle_id, cell, depth);
+            addCircleToParentCell(circle_id, cell);
         }
         cell->selected = circleInCell;
         return;
@@ -581,7 +603,7 @@ void updateCell(struct Cell* cell, int depth) {
 
     for (int i = 0; i < 4; i++) {
         struct Cell* subcell = &cell->subcells[i];
-        updateCell(subcell, depth+1);
+        updateCell(subcell);
     }
 }
 
