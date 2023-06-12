@@ -39,6 +39,7 @@ struct Cell {
     double cellHeight;
     int numCirclesInCell;
     bool isLeaf;
+    bool isPreLeaf;
     int* circle_ids;
     struct Cell* subcells;
     struct Cell* parentCell;
@@ -211,6 +212,7 @@ int main(int argc, char** argv) {
     rootCell->cellWidth = (float) SCREEN_WIDTH;
     rootCell->cellHeight = (float) SCREEN_HEIGHT;
     rootCell->isLeaf = true;
+    rootCell->isPreLeaf = false;
     rootCell->numCirclesInCell = 0;
     rootCell->parentCell = NULL;
     rootCell->clearTimer = clearTimer;
@@ -395,6 +397,12 @@ void collapse(struct Cell* cell, struct Cell* originCell, int depth) {
         if (cell->isLeaf) {
             return;
         }
+        if (!cell->isPreLeaf) {
+            for (int i = 0; i < 4; i++) {
+                collapse(&cell->subcells[i], &cell->subcells[i], depth+1);
+            }
+            return;
+        }
         cell->isLeaf = true;
         if (cell->clearTimer > 0) {
             cell->clearTimer--;
@@ -435,6 +443,9 @@ void collapse(struct Cell* cell, struct Cell* originCell, int depth) {
 
     if (cell == originCell) {
         cell->isLeaf = true;
+        cell->isPreLeaf = false;
+        if (cell->parentCell != NULL)
+            cell->parentCell->isPreLeaf = true;
     }
 }
 
@@ -444,6 +455,9 @@ void collapseAllCollapsableCells(struct Cell* cell) {
 
     for (int i = 0; i < 4; i++)
         collapseAllCollapsableCells(&cell->subcells[i]);
+
+    if (!cell->isPreLeaf)
+        return;
 
     if (cell->numCirclesInCell <= maxCirclesPerCell)
         collapse(cell, cell, 0);
@@ -470,6 +484,7 @@ void split(struct Cell* cell) {
         cell->subcells[i].cellWidth = cell->cellWidth / 2;
         cell->subcells[i].cellHeight = cell->cellHeight / 2;
         cell->subcells[i].isLeaf = true;
+        cell->subcells[i].isPreLeaf = false;
         cell->subcells[i].numCirclesInCell = 0;
         cell->subcells[i].parentCell = cell;
         cell->subcells[i].subcells = NULL;
@@ -498,6 +513,9 @@ void split(struct Cell* cell) {
     }
 
     cell->isLeaf = false;
+    cell->isPreLeaf = true;
+    if (cell->parentCell != NULL)
+        cell->parentCell->isPreLeaf = false;
     free(cell->circle_ids);
     cell->circle_ids = NULL;
     //cell->numCirclesInCell = circlesAdded;
@@ -544,18 +562,17 @@ bool addCircleToCell(int circle_id, struct Cell* cell) {
 
     bool added = false;
     bool alreadyInsideCellArea = cellContainsCircle(cell, circle_id);
+
     for (int i = 0; i < 4; i++) {
         if (addCircleToCell(circle_id, &cell->subcells[i])) {
             added = true;
         }
     }
-    if (!added)
-        return false;
 
-    if (!alreadyInsideCellArea)
+    if (added && !alreadyInsideCellArea && cell->isPreLeaf)
         cell->numCirclesInCell++;
 
-    return true;
+    return added;
 }
 
 void addCircleToParentCell(int circle_id, struct Cell* cell) {
@@ -579,9 +596,43 @@ void addCircleToParentCell(int circle_id, struct Cell* cell) {
         }
     } else {
         parentCell->numCirclesInCell--;
+        deleteCircle(parentCell, circle_id);
     }
 
     addCircleToParentCell(circle_id, parentCell);
+}
+
+void updateNumCircles(struct Cell* cell) {
+    if (!cell->isPreLeaf)
+        return;
+
+    //printf("BEFORE: %d\n", cell->numCirclesInCell);
+
+    int length = 0;
+    int* allCircles = (int*)malloc(sizeof(int) * 100);
+    for (int i = 0; i < 4; i++) {
+        struct Cell* subcell = &cell->subcells[i];
+        int sub_length = subcell->numCirclesInCell;
+        int* sub_circles = subcell->circle_ids;
+        for (int j = 0; j < sub_length; j++) {
+            if (!isCircleOverlappingCellArea(sub_circles[j], subcell)) {
+                deleteCircle(subcell, sub_circles[j]);
+            }
+            bool contains = false;
+            for (int k = 0; k < length; k++) {
+                if (allCircles[k] != sub_circles[j])
+                    continue;
+                contains = true;
+                break;
+            }
+            if (contains)
+                continue;
+
+            allCircles[length++] = sub_circles[j];
+        }
+    }
+    cell->numCirclesInCell = length;
+    //printf("aFTER: %d\n\n", cell->numCirclesInCell);
 }
 
 void updateCell(struct Cell* cell) {
@@ -605,6 +656,11 @@ void updateCell(struct Cell* cell) {
         struct Cell* subcell = &cell->subcells[i];
         updateCell(subcell);
     }
+
+    if (!cell->isPreLeaf)
+        return;
+
+    updateNumCircles(cell);
 }
 
 float random_float(float min, float max) {
