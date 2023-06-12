@@ -379,11 +379,11 @@ bool cellContainsCircle(struct Cell* cell, int circle_id) {
 }
 
 bool isCircleOverlappingCellArea(int circle_id, struct Cell* cell) {
-    return circles[circle_id].posX + circleSize / 2 >= cell->posX && circles[circle_id].posX - circleSize / 2 <= cell->posX + cell->cellWidth && circles[circle_id].posY + circleSize / 2 >= cell->posY && circles[circle_id].posY - circleSize / 2 <= cell->posY + cell->cellHeight;
+    return circles[circle_id].posX >= cell->posX && circles[circle_id].posX <= cell->posX + cell->cellWidth && circles[circle_id].posY >= cell->posY && circles[circle_id].posY <= cell->posY + cell->cellHeight;
 }
 
 bool isFullCircleInsideCellArea(int circle_id, struct Cell* cell) {
-    return circles[circle_id].posX - circleSize / 2 >= cell->posX && circles[circle_id].posX + circleSize / 2 <= cell->posX + cell->cellWidth && circles[circle_id].posY - circleSize / 2 >= cell->posY && circles[circle_id].posY + circleSize / 2 <= cell->posY + cell->cellHeight;
+    return circles[circle_id].posX >= cell->posX && circles[circle_id].posX <= cell->posX + cell->cellWidth && circles[circle_id].posY >= cell->posY && circles[circle_id].posY <= cell->posY + cell->cellHeight;
 }
 
 void collapse(struct Cell* cell, struct Cell* originCell, int depth) {
