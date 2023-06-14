@@ -368,7 +368,7 @@ void checkCollisions(struct Cell* cell) {
 }
 
 bool isCircleCloseToCellArea(int circle_id, struct Cell* cell) {
-    return circles[circle_id].posX + circleSize / 2 + maxSpeed >= cell->posX && circles[circle_id].posX - circleSize / 2 - maxSpeed <= cell->posX + cell->cellWidth && circles[circle_id].posY + circleSize / 2+ maxSpeed >= cell->posY && circles[circle_id].posY - circleSize / 2 - maxSpeed <= cell->posY + cell->cellHeight;
+    return circles[circle_id].posX + circleSize + maxSpeed >= cell->posX && circles[circle_id].posX - circleSize - maxSpeed <= cell->posX + cell->cellWidth && circles[circle_id].posY + circleSize + maxSpeed >= cell->posY && circles[circle_id].posY - circleSize - maxSpeed <= cell->posY + cell->cellHeight;
 }
 
 bool cellContainsCircle(struct Cell* cell, int circle_id) {
