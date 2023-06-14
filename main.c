@@ -629,13 +629,15 @@ void deleteCircle(struct Cell* cell, int circle_id) {
         }
     }
     else {
-        if(cellContainsCircle(cell, circle_id) && !isCircleOverlappingCellArea(circle_id, cell))
-        {
-            cell->numCirclesInCell--;
+        if(cellContainsCircle(cell, circle_id)) {
+            for(int i=0; i<4; i++) {
+                deleteCircle(&cell->subcells[i], circle_id);
+            }
+            if(!isCircleOverlappingCellArea(circle_id, cell)) {
+                cell->numCirclesInCell--;
+            }
         }
-        for(int i=0; i<4; i++) {
-            deleteCircle(&cell->subcells[i], circle_id);
-        }
+
     }
 }
 
