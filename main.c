@@ -367,15 +367,21 @@ void checkCollisions(struct Cell* cell) {
     }
 }
 
+bool isCircleCloseToCellArea(int circle_id, struct Cell* cell) {
+    return circles[circle_id].posX + circleSize + maxSpeed >= cell->posX && circles[circle_id].posX - circleSize - maxSpeed <= cell->posX + cell->cellWidth && circles[circle_id].posY + circleSize + maxSpeed >= cell->posY && circles[circle_id].posY - circleSize - maxSpeed <= cell->posY + cell->cellHeight;
+}
+
 bool cellContainsCircle(struct Cell* cell, int circle_id) {
     if (cell->isLeaf) {
         for (int i = 0; i < cell->numCirclesInCell; i++)
             if (circle_id == cell->circle_ids[i])
                 return true;
     } else {
-        for (int i = 0; i < 4; i++)
-            if (cellContainsCircle(&cell->subcells[i], circle_id))
-                return true;
+        for (int i = 0; i < 4; i++) {
+            if (isCircleCloseToCellArea(circle_id, &cell->subcells[i]))
+                if (cellContainsCircle(&cell->subcells[i], circle_id))
+                    return true;
+        }
     }
     return false;
 }
@@ -640,4 +646,3 @@ void deleteCircle(struct Cell* cell, int circle_id) {
 
     }
 }
-
