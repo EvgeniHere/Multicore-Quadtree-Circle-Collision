@@ -8,8 +8,8 @@
 #define SCREEN_WIDTH 1000.0
 #define SCREEN_HEIGHT 1000.0
 #define numCircles 1000
-#define circleSize 2.0
-#define maxCirclesPerCell 5
+#define circleSize 5.0
+#define maxCirclesPerCell 10
 #define maxSpawnSpeed 1.0
 #define maxSpeed 1.0
 #define gravity 0.01
@@ -368,7 +368,7 @@ void checkCollisions(struct Cell* cell) {
 }
 
 bool isCircleCloseToCellArea(int circle_id, struct Cell* cell) {
-    return circles[circle_id].posX + circleSize + maxSpeed >= cell->posX && circles[circle_id].posX - circleSize - maxSpeed <= cell->posX + cell->cellWidth && circles[circle_id].posY + circleSize + maxSpeed >= cell->posY && circles[circle_id].posY - circleSize - maxSpeed <= cell->posY + cell->cellHeight;
+    return circles[circle_id].posX + circleSize / 2 + maxSpeed >= cell->posX && circles[circle_id].posX - circleSize / 2 - maxSpeed <= cell->posX + cell->cellWidth && circles[circle_id].posY + circleSize / 2+ maxSpeed >= cell->posY && circles[circle_id].posY - circleSize / 2 - maxSpeed <= cell->posY + cell->cellHeight;
 }
 
 bool cellContainsCircle(struct Cell* cell, int circle_id) {
