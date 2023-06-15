@@ -184,7 +184,7 @@ void display() {
 void update(int counter) {
     for (int i = 0; i < numCircles; i++) {
         move(i);
-        deleteCircle(rootCell, i);
+        //deleteCircle(rootCell, i);
     }
     checkCollisions(rootCell);
     updateCell(rootCell);
@@ -566,19 +566,24 @@ void updateCell(struct Cell* cell) {
             if (isFullCircleInsideCellArea(circle_id, cell)) {
                 continue;
             }
-            /*if (!isCircleOverlappingCellArea(circle_id, cell)) {
+            int oldNum = rootCell->numCirclesInCell;
+            if (!isCircleOverlappingCellArea(circle_id, cell)) {
                 deleteCircle(rootCell, circle_id);
                 i--;
-            }*/
+            }
+            if (oldNum != rootCell->numCirclesInCell)
+                printf("%d\n", rootCell->numCirclesInCell);
+            oldNum = rootCell->numCirclesInCell;
             addCircleToParentCell(circle_id, cell);
+            if (oldNum != rootCell->numCirclesInCell)
+                printf("%d\n", rootCell->numCirclesInCell);
         }
         cell->selected = circleInCell;
         return;
     }
 
     for (int i = 0; i < 4; i++) {
-        struct Cell* subcell = &cell->subcells[i];
-        updateCell(subcell);
+        updateCell(&cell->subcells[i]);
     }
     if (cell->numCirclesInCell <= maxCirclesPerCell)
         collapse(cell, cell);
