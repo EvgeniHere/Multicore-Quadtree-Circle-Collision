@@ -7,11 +7,11 @@
 
 #define SCREEN_WIDTH 1000.0
 #define SCREEN_HEIGHT 1000.0
-#define numCircles 100
-#define circleSize 1.5
+#define numCircles 1000
+#define circleSize 0.5
 #define maxCirclesPerCell 3
-#define maxSpawnSpeed 2.0
-#define maxSpeed 2.5
+#define maxSpawnSpeed (circleSize / 2.0)
+#define maxSpeed (circleSize / 2.0)
 #define gravity 0.01
 
 bool gravityState = true; //Mouseclick ins Fenster
@@ -20,7 +20,7 @@ double dt = 1.0;
 int selectedCircle = 5742;
 int clearTimer = 0;
 double friction = 1.0;
-double minCellSize = 2 * circleSize + maxSpeed;
+double minCellSize = 2 * circleSize + 2 * maxSpeed;
 
 struct Circle {
     double posX;
@@ -190,11 +190,11 @@ void display() {
 }
 
 void update(int counter) {
+    checkCollisions(rootCell);
     for (int i = 0; i < numCircles; i++) {
         move(i);
         deleteCircle(rootCell, i);
     }
-    checkCollisions(rootCell);
     updateCell(rootCell);
     for (int i = 0; i < numCircles; i++) {
         if(!cellContainsCircle(rootCell, i)) {
