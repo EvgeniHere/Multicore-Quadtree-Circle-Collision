@@ -8,7 +8,7 @@
 #define SCREEN_WIDTH 1000.0
 #define SCREEN_HEIGHT 1000.0
 #define numCircles 1000
-#define circleSize 0.5
+#define circleSize 2
 #define maxCirclesPerCell 3
 #define maxSpawnSpeed (circleSize / 2.0)
 #define maxSpeed (circleSize / 2.0)
@@ -20,14 +20,13 @@ double dt = 1.0;
 int selectedCircle = 5742;
 int clearTimer = 0;
 double friction = 1.0;
-double minCellSize = 2 * circleSize + 2 * maxSpeed;
+double minCellSize = 2 * circleSize + 4 * maxSpeed;
 
 struct Circle {
     double posX;
     double posY;
     double velX;
     double velY;
-    int isUsed;
 };
 
 struct Circle circles[numCircles];
@@ -43,7 +42,6 @@ struct Cell {
     struct Cell* subcells;
     struct Cell* parentCell;
     bool selected;
-    int clearTimer;
 };
 
 struct Cell* rootCell;
@@ -58,6 +56,7 @@ void updateCell(struct Cell* cell);
 void printTree(struct Cell* cell, int depth);
 bool deleteCircle(struct Cell* cell, int circle_id);
 bool cellContainsCircle(struct Cell* cell, int circle_id);
+void collapseAllCollapsableCells(struct Cell* cell);
 
 void mouseClick(int button, int state, int x, int y) {
     if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
@@ -82,12 +81,12 @@ void mouseClick(int button, int state, int x, int y) {
 }
 
 void drawCircle(GLfloat centerX, GLfloat centerY, GLfloat radius, int numSides) {
-    GLfloat angleIncrement = 2.0 * M_PI / numSides;
     if (circleSize <= 2.0f) {
         glBegin(GL_POINTS);
         glVertex2i(centerX, centerY); //Set pixel coordinates
         glEnd();
     } else {
+        GLfloat angleIncrement = 2.0 * M_PI / numSides;
         glBegin(GL_POLYGON);
         for (int i = 0; i < numSides; i++) {
             GLfloat angle = i * angleIncrement;
@@ -189,13 +188,19 @@ void display() {
     glutSwapBuffers();
 }
 
+void updateAllCircleCells(struct Cell* cell) {
+
+}
+
 void update(int counter) {
     checkCollisions(rootCell);
     for (int i = 0; i < numCircles; i++) {
         move(i);
         deleteCircle(rootCell, i);
     }
+    updateAllCircleCells(rootCell);
     updateCell(rootCell);
+    collapseAllCollapsableCells(rootCell);
     for (int i = 0; i < numCircles; i++) {
         if(!cellContainsCircle(rootCell, i)) {
             struct Circle circle = circles[i];
@@ -203,7 +208,6 @@ void update(int counter) {
         }
     }
     //splitAllSplittableCells(rootCell);
-    //collapseAllCollapsableCells(rootCell);
     glutPostRedisplay();
     glutTimerFunc(50.0f/dt, update, counter + 1);
 }
@@ -223,7 +227,6 @@ int main(int argc, char** argv) {
     rootCell->isLeaf = true;
     rootCell->numCirclesInCell = 0;
     rootCell->parentCell = NULL;
-    rootCell->clearTimer = clearTimer;
     rootCell->circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
     if (rootCell->circle_ids == NULL) {
         printf("Memory error!");
@@ -236,7 +239,6 @@ int main(int argc, char** argv) {
         circles[i].posY = random_double(circleSize/2.0, SCREEN_HEIGHT-circleSize/2.0);
         circles[i].velX = random_double(-maxSpawnSpeed, maxSpawnSpeed);
         circles[i].velY = random_double(-maxSpawnSpeed, maxSpawnSpeed);
-        circles[i].isUsed = 0;
     }
 
     for (int i = 0; i < numCircles; i++) {
@@ -324,12 +326,6 @@ void checkCollisions(struct Cell* cell) {
                 fabs(circles[id_1].posY - circles[id_2].posY) > circleSize)
                 continue;
 
-            if (circles[id_1].isUsed == 1 || circles[id_2].isUsed == 1)
-                continue;
-
-            circles[id_1].isUsed = 1;
-            circles[id_2].isUsed = 1;
-
             double dx = circles[id_2].posX - circles[id_1].posX;
             double dy = circles[id_2].posY - circles[id_1].posY;
             double distSquared = dx * dx + dy * dy;
@@ -362,11 +358,7 @@ void checkCollisions(struct Cell* cell) {
                     circles[id_2].velY *= friction;
                 }
             }
-
-            circles[id_2].isUsed = 0;
         }
-
-        circles[id_1].isUsed = 0;
     }
 
     for (int i = 0; i < cell->numCirclesInCell; i++) {
@@ -412,10 +404,6 @@ void collapse(struct Cell* cell, struct Cell* originCell) {
             return;
         }
         cell->isLeaf = true;
-        if (cell->clearTimer > 0) {
-            cell->clearTimer--;
-            return;
-        }
         cell->numCirclesInCell = 0;
         cell->circle_ids = (int *) malloc(maxCirclesPerCell * sizeof(int));
         if (cell->circle_ids == NULL) {
@@ -454,6 +442,17 @@ void collapse(struct Cell* cell, struct Cell* originCell) {
     }
 }
 
+void collapseAllCollapsableCells(struct Cell* cell) {
+    if (cell->isLeaf)
+        return;
+
+    for (int i = 0; i < 4; i++)
+        collapseAllCollapsableCells(&cell->subcells[i]);
+
+    if (cell->numCirclesInCell <= maxCirclesPerCell)
+        collapse(cell, cell);
+}
+
 void split(struct Cell* cell) {
     cell->subcells = (struct Cell*)malloc(4 * sizeof(struct Cell));
     if (cell->subcells == NULL) {
@@ -461,7 +460,6 @@ void split(struct Cell* cell) {
         exit(1);
     }
 
-    cell->clearTimer = clearTimer;
     cell->subcells[0].posX = cell->posX;
     cell->subcells[0].posY = cell->posY;
     cell->subcells[1].posX = cell->posX + cell->cellWidth / 2.0;
@@ -480,7 +478,6 @@ void split(struct Cell* cell) {
         cell->subcells[i].subcells = NULL;
         cell->subcells[i].circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
         cell->subcells[i].selected = false;
-        cell->subcells[i].clearTimer = clearTimer;
         if (cell->subcells[i].circle_ids == NULL) {
             printf("Memory error!");
             exit(1);
@@ -593,8 +590,8 @@ void updateCell(struct Cell* cell) {
     for (int i = 0; i < 4; i++) {
         updateCell(&cell->subcells[i]);
     }
-    if (cell->numCirclesInCell <= maxCirclesPerCell)
-        collapse(cell, cell);
+    //if (cell->numCirclesInCell <= maxCirclesPerCell)
+        //collapse(cell, cell);
 }
 
 bool deleteCircle(struct Cell* cell, int circle_id) {
