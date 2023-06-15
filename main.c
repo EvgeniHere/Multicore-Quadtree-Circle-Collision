@@ -364,7 +364,7 @@ void checkCollisions(struct Cell* cell) {
 }
 
 bool isCircleCloseToCellArea(int circle_id, struct Cell* cell) {
-    return circles[circle_id].posX + circleSize + maxSpeed * 3 >= cell->posX && circles[circle_id].posX - circleSize - maxSpeed * 3 <= cell->posX + cell->cellWidth && circles[circle_id].posY + circleSize + maxSpeed * 3 >= cell->posY && circles[circle_id].posY - circleSize - maxSpeed * 3 <= cell->posY + cell->cellHeight;
+    return circles[circle_id].posX + circleSize + maxSpeed >= cell->posX && circles[circle_id].posX - circleSize - maxSpeed <= cell->posX + cell->cellWidth && circles[circle_id].posY + circleSize + maxSpeed >= cell->posY && circles[circle_id].posY - circleSize - maxSpeed <= cell->posY + cell->cellHeight;
 }
 
 bool cellContainsCircle(struct Cell* cell, int circle_id) {
@@ -505,22 +505,6 @@ void split(struct Cell* cell) {
     free(cell->circle_ids);
     cell->circle_ids = NULL;
     //cell->numCirclesInCell = circlesAdded;
-}
-
-void splitAllSplittableCells(struct Cell* cell) {
-    if (cell->isLeaf) {
-        if (cell->cellWidth <= minCellSize && cell->cellHeight <= minCellSize)
-            return;
-
-        if (cell->numCirclesInCell > maxCirclesPerCell) {
-            split(cell);
-            for (int i = 0; i < 4; i++)
-                splitAllSplittableCells(&cell->subcells[i]);
-        }
-    } else {
-        for (int i = 0; i < 4; i++)
-            splitAllSplittableCells(&cell->subcells[i]);
-    }
 }
 
 bool addCircleToCell(int circle_id, struct Cell* cell) {
