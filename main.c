@@ -47,7 +47,7 @@ struct Cell {
 struct Cell* rootCell;
 
 void move(int circle_id);
-bool addCircleToCell(int circle_id, struct Cell* cell);
+void addCircleToCell(int circle_id, struct Cell* cell);
 bool isCircleOverlappingCellArea(int circle_id, struct Cell* cell);
 void split(struct Cell* cell);
 double random_double(double min, double max);
@@ -486,10 +486,11 @@ void split(struct Cell* cell) {
 
     for (int i = 0; i < cell->numCirclesInCell; i++) {
         int circle_id = cell->circle_ids[i];
-        if (!isCircleOverlappingCellArea(circle_id, cell))
-            continue;
         for (int j = 0; j < 4; j++) {
-            addCircleToCell(circle_id, &cell->subcells[j]);
+            struct Cell* subcell = &cell->subcells[j];
+            if (!isCircleOverlappingCellArea(circle_id, subcell))
+                continue;
+            addCircleToCell(circle_id, subcell);
         }
     }
 
@@ -498,25 +499,22 @@ void split(struct Cell* cell) {
     cell->circle_ids = NULL;
 }
 
-bool addCircleToCell(int circle_id, struct Cell* cell) {
-    if (!isCircleOverlappingCellArea(circle_id, cell))
-        return false;
-
+void addCircleToCell(int circle_id, struct Cell* cell) {
     if (cell->isLeaf) {
         if (cellContainsCircle(cell, circle_id))
-            return false;
+            return;
 
         if (cell->numCirclesInCell >= maxCirclesPerCell) {
-            if (cell->cellWidth > minCellSize || cell->cellHeight > minCellSize) {
+            if (cell->cellWidth > minCellSize && cell->cellHeight > minCellSize) {
                 split(cell);
-                bool addedCircle = false;
                 for (int i = 0; i < 4; i++) {
-                    if (addCircleToCell(circle_id, &cell->subcells[i]))
-                        addedCircle = true;
+                    struct Cell* subcell = &cell->subcells[i];
+                    if (!isCircleOverlappingCellArea(circle_id, subcell))
+                        continue;
+                    addCircleToCell(circle_id, subcell);
                 }
-                if (addedCircle)
-                    cell->numCirclesInCell++;
-                return addedCircle;
+                cell->numCirclesInCell++;
+                return;
             } else {
                 cell->circle_ids = (int *) realloc(cell->circle_ids, ((cell->numCirclesInCell) + 1) * sizeof(int));
                 if (cell->circle_ids == NULL) {
@@ -525,38 +523,32 @@ bool addCircleToCell(int circle_id, struct Cell* cell) {
                 }
             }
         }
-        cell->circle_ids[cell->numCirclesInCell] = circle_id;
-        cell->numCirclesInCell++;
-        return true;
+        cell->circle_ids[cell->numCirclesInCell++] = circle_id;
+        return;
     }
 
-    bool added = false;
-    bool alreadyInsideCellArea = cellContainsCircle(cell, circle_id);
+    bool alreadyInsideCell = cellContainsCircle(cell, circle_id);
     for (int i = 0; i < 4; i++) {
-        if (addCircleToCell(circle_id, &cell->subcells[i])) {
-            added = true;
-        }
+        struct Cell* subcell = &cell->subcells[i];
+        if (!isCircleOverlappingCellArea(circle_id, subcell))
+            continue;
+        addCircleToCell(circle_id, subcell);
     }
-    if (!added)
-        return false;
 
-    if (!alreadyInsideCellArea)
+    if (!alreadyInsideCell)
         cell->numCirclesInCell++;
-
-    return true;
 }
 
 void addCircleToParentCell(int circle_id, struct Cell* cell) {
-    if (cell == rootCell) {
+    if (cell == rootCell)
         return;
-    }
 
     struct Cell* parentCell = cell->parentCell;
 
     if (isCircleOverlappingCellArea(circle_id, parentCell)) {
         for (int i = 0; i < 4; i++) {
             struct Cell* neighbourCell = &parentCell->subcells[i];
-            if (neighbourCell == cell)
+            if (neighbourCell == cell || !isCircleOverlappingCellArea(circle_id, neighbourCell))
                 continue;
             addCircleToCell(circle_id, neighbourCell);
         }
