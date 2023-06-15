@@ -566,17 +566,11 @@ void updateCell(struct Cell* cell) {
             if (isFullCircleInsideCellArea(circle_id, cell)) {
                 continue;
             }
-            int oldNum = rootCell->numCirclesInCell;
             if (!isCircleOverlappingCellArea(circle_id, cell)) {
                 deleteCircle(rootCell, circle_id);
                 i--;
             }
-            if (oldNum != rootCell->numCirclesInCell)
-                printf("%d\n", rootCell->numCirclesInCell);
-            oldNum = rootCell->numCirclesInCell;
             addCircleToParentCell(circle_id, cell);
-            if (oldNum != rootCell->numCirclesInCell)
-                printf("%d\n", rootCell->numCirclesInCell);
         }
         cell->selected = circleInCell;
         return;
