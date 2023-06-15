@@ -57,6 +57,7 @@ void checkCollisions(struct Cell* cell);
 void updateCell(struct Cell* cell);
 void printTree(struct Cell* cell, int depth);
 bool deleteCircle(struct Cell* cell, int circle_id);
+bool cellContainsCircle(struct Cell* cell, int circle_id);
 
 void mouseClick(int button, int state, int x, int y) {
     if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
@@ -188,6 +189,11 @@ void update(int counter) {
     }
     checkCollisions(rootCell);
     updateCell(rootCell);
+    for (int i = 0; i < numCircles; i++) {
+        if(!cellContainsCircle(rootCell, i)) {
+            printf("Error! Lost Circle!\n");
+        }
+    }
     //splitAllSplittableCells(rootCell);
     //collapseAllCollapsableCells(rootCell);
     glutPostRedisplay();
@@ -566,7 +572,8 @@ void updateCell(struct Cell* cell) {
             if (isFullCircleInsideCellArea(circle_id, cell)) {
                 continue;
             }
-            /*if (!isCircleOverlappingCellArea(circle_id, cell)) {
+            /*
+            if (!isCircleOverlappingCellArea(circle_id, cell)) {
                 deleteCircle(rootCell, circle_id);
                 i--;
             }*/
