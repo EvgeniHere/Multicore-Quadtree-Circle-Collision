@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <GL/glut.h>
 #include <GL/gl.h>
+#include <mpi.h>
 
 #define SCREEN_WIDTH 1000.0
 #define SCREEN_HEIGHT 1000.0
@@ -188,25 +189,14 @@ void display() {
     glutSwapBuffers();
 }
 
-void updateAllCircleCells(struct Cell* cell) {
-
-}
-
 void update(int counter) {
     checkCollisions(rootCell);
     for (int i = 0; i < numCircles; i++) {
         move(i);
         deleteCircle(rootCell, i);
     }
-    updateAllCircleCells(rootCell);
     updateCell(rootCell);
     collapseAllCollapsableCells(rootCell);
-    for (int i = 0; i < numCircles; i++) {
-        if(!cellContainsCircle(rootCell, i)) {
-            struct Circle circle = circles[i];
-            printf("Error! Lost Circle!\n");
-        }
-    }
     //splitAllSplittableCells(rootCell);
     glutPostRedisplay();
     glutTimerFunc(50.0f/dt, update, counter + 1);
@@ -214,6 +204,12 @@ void update(int counter) {
 
 int main(int argc, char** argv) {
     srand(90);
+
+    MPI_Init(&argc, &argv);
+
+    int rank, size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     rootCell = (struct Cell*)malloc(sizeof(struct Cell));
     if (rootCell == NULL) {
