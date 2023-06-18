@@ -20,11 +20,7 @@ int circle_max_y = 0;
 void setupCircles(int screen_width, int screen_height);
 void move(struct Circle* circle);
 void checkPosition(struct Circle* circle);
-
-void setupCircles(int screen_width, int screen_height) {
-    circle_max_X = screen_width;
-    circle_max_y = screen_height;
-}
+struct Circle* circleCopy(struct Circle*);
 
 void move(struct Circle* circle) {
     if (gravityState)
@@ -76,3 +72,11 @@ void checkPosition(struct Circle* circle) {
     }
 }
 
+struct Circle* circleCopy(struct Circle* origCircle) {
+    struct Circle* circle = (struct Circle*) malloc(sizeof(struct Circle));
+    circle->posX = origCircle->posX;
+    circle->posY = origCircle->posY;
+    circle->velX = origCircle->velX;
+    circle->velY = origCircle->velY;
+    return circle;
+}

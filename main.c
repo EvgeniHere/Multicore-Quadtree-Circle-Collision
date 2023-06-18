@@ -4,49 +4,162 @@
 #include <mpi.h>
 #include "window.c"
 #include "quadtree.c"
+#include <GL/freeglut.h>
+#include <stdio.h>
+#include <errno.h>
+#include <time.h>
+
+#define SCREEN_WIDTH 1000
+#define SCREEN_HEIGHT 1000
 
 double dt = 1.0;
-int selectedCircle = 5742;
+
+int tag_numCircles = 0;
+int tag_circles = 1;
+
+bool* circleIsInBL;
+bool* circleIsInBR;
+bool* circleIsInTR;
+bool* circleIsInTL;
+
+int rank, size;
 
 int main(int args, char** argv);
-void update(int counter);
+void update();
 void display();
-void mouseClick(int button, int state, int x, int y);
 void drawCircle(GLfloat centerX, GLfloat centerY, GLfloat radius, int numSides);
-void drawTree(struct Cell* cell, int depth);
+void initOpenGL(int* argc, char** argv);
+int sleep(long ms);
 
 int main(int argc, char** argv) {
-    srand(90);
-
-    numCircles = 1000;
-    circleSize = 10;
-    maxSpeed = circleSize / 2.0;
-    maxCirclesPerCell = 3;
-    minCellSize = 2 * circleSize + 4 * maxSpeed;
-    circles = (struct Circle*) malloc(sizeof(struct Circle) * numCircles);
-
     MPI_Init(&argc, &argv);
 
-    int rank, size;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    setupCircles(SCREEN_WIDTH, SCREEN_HEIGHT);
-    setupQuadtree(0.0, 0.0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    printf("%d %d\n", rank, size);
 
-    initOpenGL(&argc, argv, display, update, mouseClick);
+    if (size < 5) {
+        fprintf(stderr, "This program requires at least 5 processes.\n");
+        MPI_Finalize();
+        return 1;
+    }
 
+    numCircles = 10000;
+    circleSize = 1.0;
+    maxSpeed = circleSize / 2.0;
+    maxCirclesPerCell = 3;
+    minCellSize = 2 * circleSize + 4 * maxSpeed;
+    circle_max_X = SCREEN_WIDTH;
+    circle_max_y = SCREEN_HEIGHT;
+
+    circles = (struct Circle*) malloc(sizeof(struct Circle) * numCircles);
+
+    if (rank == 0) {
+        srand(90);
+        circleIsInBL = (bool*) malloc(numCircles * sizeof(bool));
+        circleIsInBR = (bool*) malloc(numCircles * sizeof(bool));
+        circleIsInTR = (bool*) malloc(numCircles * sizeof(bool));
+        circleIsInTL = (bool*) malloc(numCircles * sizeof(bool));
+
+        for (int i = 0; i < numCircles; i++) {
+            circles[i].posX = random_double(circleSize/2.0, SCREEN_WIDTH - circleSize/2.0);
+            circles[i].posY = random_double(circleSize/2.0, SCREEN_HEIGHT - circleSize/2.0);
+            circles[i].velX = random_double(-maxSpeed, maxSpeed);
+            circles[i].velY = random_double(-maxSpeed, maxSpeed);
+            circleIsInBL[i] = isCircleOverlappingArea(&circles[i], 0, 0, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+            circleIsInBR[i] = isCircleOverlappingArea(&circles[i], SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+            circleIsInTR[i] = isCircleOverlappingArea(&circles[i], SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+            circleIsInTL[i] = isCircleOverlappingArea(&circles[i], 0, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+        }
+    }
+
+    MPI_Bcast(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, MPI_COMM_WORLD);
+
+    if (rank == 1) {
+        setupQuadtree(0, 0, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+    } else if (rank == 2) {
+        setupQuadtree(SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+    } else if (rank == 3) {
+        setupQuadtree(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+    } else if (rank == 4) {
+        setupQuadtree(0, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+    }
+
+    glutInit((int *) &argc, argv);
+    if (rank == 0)
+        initOpenGL(&argc, argv);
+    else {
+        update();
+    }
+
+    MPI_Finalize();
     return 0;
 }
 
-void update(int counter) {
-    checkCollisions(rootCell);
-    for (int i = 0; i < numCircles; i++) {
-        move(&circles[i]);
-        deleteCircle(rootCell, i);
+void update() {
+    if (rank != 0) {
+        checkCollisions(rootCell);
+        for (int i = 0; i < numCircles; i++) {
+            move(&circles[i]);
+            deleteCircle(rootCell, i);
+        }
+        updateCell(rootCell);
+        MPI_Send(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD);
+    } else {
+        struct Circle* recv_circles = (struct Circle*) malloc(numCircles * sizeof(struct Circle));
+        MPI_Recv(recv_circles, numCircles * sizeof(struct Circle), MPI_BYTE, 1, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        for (int i = 0; i < numCircles; i++) {
+            if (circleIsInBL[i])
+                circles[i] = *circleCopy(&recv_circles[i]);
+            circleIsInBL[i] = isCircleOverlappingArea(&circles[i], 0, 0, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+        }
+        MPI_Recv(recv_circles, numCircles * sizeof(struct Circle), MPI_BYTE, 2, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        for (int i = 0; i < numCircles; i++) {
+            if (circleIsInBR[i])
+                circles[i] = *circleCopy(&recv_circles[i]);
+            circleIsInBR[i] = isCircleOverlappingArea(&circles[i], SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+        }
+        MPI_Recv(recv_circles, numCircles * sizeof(struct Circle), MPI_BYTE, 3, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        for (int i = 0; i < numCircles; i++) {
+            if (circleIsInTR[i])
+                circles[i] = *circleCopy(&recv_circles[i]);
+            circleIsInTR[i] = isCircleOverlappingArea(&circles[i], SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+        }
+        MPI_Recv(recv_circles, numCircles * sizeof(struct Circle), MPI_BYTE, 4, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        for (int i = 0; i < numCircles; i++) {
+            if (circleIsInTL[i])
+                circles[i] = *circleCopy(&recv_circles[i]);
+            circleIsInTL[i] = isCircleOverlappingArea(&circles[i], 0, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+        }
+        free(recv_circles);
     }
-    updateCell(rootCell);
-    updateWindow(50.0/dt, counter);
+
+    MPI_Bcast(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, MPI_COMM_WORLD);
+
+    for (int i = 0; i < numCircles; i++) {
+        if (rank == 1) {
+            if (isCircleOverlappingArea(&circles[i], 0, 0, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2))
+                addCircleToCell(i, rootCell);
+        } else if (rank == 2) {
+            if (isCircleOverlappingArea(&circles[i], SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2))
+                addCircleToCell(i, rootCell);
+        } else if (rank == 3) {
+            if (isCircleOverlappingArea(&circles[i], SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2))
+                addCircleToCell(i, rootCell);
+        } else if (rank == 4) {
+            if (isCircleOverlappingArea(&circles[i], 0, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2))
+                addCircleToCell(i, rootCell);
+        }
+    }
+
+    if (rank == 0) {
+        glutPostRedisplay();
+        glutTimerFunc(30, update, 0);
+    } else {
+        sleep(30);
+        update();
+    }
 }
 
 void display() {
@@ -56,6 +169,7 @@ void display() {
     gluOrtho2D(0, SCREEN_WIDTH, 0, SCREEN_HEIGHT); // Set up an orthographic projection
     glMatrixMode(GL_MODELVIEW); // WIRD DAS GEBRAUCHT???
     glLoadIdentity();
+    glPointSize(circleSize);
     glColor3ub(255, 255, 255);
 
     for (int i = 0; i < numCircles; i++) {
@@ -66,40 +180,26 @@ void display() {
             radius = 1.0f;
         int numSides = 32;
 
-        if (!cellContainsCircle(rootCell, i)) {
-            glColor3ub(255, 0, 0);
-            glPointSize(circleSize*3);
-        } else {
-            glColor3ub( 255, 255, 255);
-            glPointSize(circleSize);
-        }
-
-        if (i == selectedCircle)
-            glColor3ub(0, 255, 0);
-
         drawCircle(centerX, centerY, radius, numSides);
     }
-
-    glColor3ub(255, 255, 255);
-
-    drawTree(rootCell, 0);
 
     glutSwapBuffers();
 }
 
-void mouseClick(int button, int state, int x, int y) {
-    if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-        gravityState = !gravityState;
-        printTree(rootCell, 0);
-    } else if (button == 3) {
-        dt += 0.1f;
-        if (dt > 5.0f)
-            dt = 5.0f;
-    } else if (button == 4) {
-        dt -= 0.1f;
-        if (dt < 0.1f)
-            dt = 0.1f;
-    }
+void closeWindow() {
+    MPI_Abort(MPI_COMM_WORLD, 0);
+    MPI_Finalize();
+    exit(0);
+}
+
+void initOpenGL(int* argc, char** argv) {
+    glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
+    glutInitWindowSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+    glutCreateWindow("Bouncing Circles");
+    glutCloseFunc(closeWindow);
+    glutDisplayFunc(display);
+    glutTimerFunc(100, update, 0);
+    glutMainLoop();
 }
 
 void drawCircle(GLfloat centerX, GLfloat centerY, GLfloat radius, int numSides) {
@@ -120,26 +220,21 @@ void drawCircle(GLfloat centerX, GLfloat centerY, GLfloat radius, int numSides) 
     }
 }
 
-void drawTree(struct Cell* cell, int depth) {
-    if (cell->isLeaf) {
-        glBegin(GL_LINE_LOOP);
-        glVertex2f(cell->posX + 1, cell->posY + 1); // bottom left corner
-        glVertex2f(cell->posX + 1, cell->posY + 1 + cell->cellHeight - 2); // top left corner
-        glVertex2f(cell->posX + 1 + cell->cellWidth - 2, cell->posY + 1 + cell->cellHeight - 2); // top right corner
-        glVertex2f(cell->posX + 1 + cell->cellWidth - 2, cell->posY + 1); // bottom right corner
-        glEnd();
-        /*for (int i = 0; i < cell->numCirclesInCell; i++) {
-            struct Circle circle = circles[cell->circle_ids[i]];
-            glBegin(GL_LINES);
-            glVertex2f(circle.posX, circle.posY);  // Top-left point
-            glVertex2f(cell->posX + cell->cellWidth / 2, cell->posY + cell->cellHeight / 2);   // Top-right point
-            glEnd();
-        }*/
-    } else {
-        if (cell->isLeaf)
-            return;
-        for (int i = 0; i < 4; i++) {
-            drawTree(&cell->subcells[i], depth+1);
-        }
+int sleep(long tms) {
+    struct timespec ts;
+    int ret;
+
+    if (tms < 0) {
+        errno = EINVAL;
+        return -1;
     }
+
+    ts.tv_sec = tms / 1000;
+    ts.tv_nsec = (tms % 1000) * 1000000;
+
+    do {
+        ret = nanosleep(&ts, &ts);
+    } while (ret && errno == EINTR);
+
+    return ret;
 }

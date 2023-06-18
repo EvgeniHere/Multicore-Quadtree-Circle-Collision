@@ -16,12 +16,12 @@ struct Cell {
     struct Cell* parentCell;
 };
 
-int maxCirclesPerCell = 3;
-double minCellSize = 10.0;
+int maxCirclesPerCell;
+double minCellSize;
 
 struct Cell* rootCell;
 
-int numCircles = 0;
+int numCircles;
 struct Circle* circles;
 
 void updateCell(struct Cell* cell);
@@ -35,6 +35,7 @@ bool cellContainsCircle(struct Cell* cell, int circle_id);
 bool isCircleFullInsideCellArea(int circle_id, struct Cell* cell);
 bool isCircleOverlappingCellArea(int circle_id, struct Cell* cell);
 bool isCircleCloseToCellArea(int circle_id, struct Cell* cell);
+bool isCircleOverlappingArea(struct Circle* circle, double cellPosX, double cellPosY, double cellWidth, double cellHeight);
 void printTree(struct Cell* cell, int depth);
 double random_double(double min, double max);
 
@@ -57,13 +58,6 @@ void setupQuadtree(double rootCellX, double rootCellY, double rootCellWidth, dou
         exit(1);
     }
     rootCell->subcells = NULL;
-
-    for (int i = 0; i < numCircles; i++) {
-        circles[i].posX = rootCellX + random_double(circleSize/2.0, rootCellWidth-circleSize/2.0);
-        circles[i].posY = rootCellY + random_double(circleSize/2.0, rootCellHeight-circleSize/2.0);
-        circles[i].velX = random_double(-maxSpeed, maxSpeed);
-        circles[i].velY = random_double(-maxSpeed, maxSpeed);
-    }
 
     for (int i = 0; i < numCircles; i++) {
         addCircleToCell(i, rootCell);
@@ -94,6 +88,9 @@ void updateCell(struct Cell* cell) {
 }
 
 void addCircleToCell(int circle_id, struct Cell* cell) {
+    if (!isCircleOverlappingCellArea(circle_id, cell))
+        return;
+
     if (cell->isLeaf) {
         if (cellContainsCircle(cell, circle_id))
             return;
@@ -358,6 +355,9 @@ bool isCircleOverlappingCellArea(int circle_id, struct Cell* cell) {
 
 bool isCircleCloseToCellArea(int circle_id, struct Cell* cell) {
     return circles[circle_id].posX + circleSize + maxSpeed >= cell->posX && circles[circle_id].posX - circleSize - maxSpeed <= cell->posX + cell->cellWidth && circles[circle_id].posY + circleSize + maxSpeed >= cell->posY && circles[circle_id].posY - circleSize - maxSpeed <= cell->posY + cell->cellHeight;
+}
+bool isCircleOverlappingArea(struct Circle* circle, double cellPosX, double cellPosY, double cellWidth, double cellHeight) {
+    return circle->posX + circleSize / 2.0 >= cellPosX && circle->posX - circleSize / 2.0 <= cellPosX + cellWidth && circle->posY + circleSize / 2.0 >= cellPosY && circle->posY - circleSize / 2.0 <= cellPosY + cellHeight;
 }
 
 void printTree(struct Cell* cell, int depth) {
