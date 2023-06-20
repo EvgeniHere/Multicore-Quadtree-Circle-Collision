@@ -17,6 +17,9 @@ double dt = 1.0;
 int tag_numCircles = 0;
 int tag_circles = 1;
 
+int frames = 0;
+clock_t begin;
+
 bool* circleIsInBL;
 bool* circleIsInBR;
 bool* circleIsInTR;
@@ -87,10 +90,13 @@ int main(int argc, char** argv) {
     }
 
     glutInit((int *) &argc, argv);
-    if (rank == 0)
+    if (rank == 0) {
+        begin = clock();
         initOpenGL(&argc, argv);
-    else {
-        update();
+    } else {
+        while (true) {
+            update();
+        }
     }
 
     MPI_Finalize();
@@ -107,30 +113,37 @@ void update() {
         updateCell(rootCell);
         MPI_Send(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD);
     } else {
-        struct Circle* recv_circles = (struct Circle*) malloc(numCircles * sizeof(struct Circle));
-        MPI_Recv(recv_circles, numCircles * sizeof(struct Circle), MPI_BYTE, 1, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        struct Circle *recv_circles = (struct Circle *) malloc(numCircles * sizeof(struct Circle));
+        MPI_Recv(recv_circles, numCircles * sizeof(struct Circle), MPI_BYTE, 1, tag_circles, MPI_COMM_WORLD,
+                 MPI_STATUS_IGNORE);
         for (int i = 0; i < numCircles; i++) {
             if (circleIsInBL[i])
                 circles[i] = *circleCopy(&recv_circles[i]);
             circleIsInBL[i] = isCircleOverlappingArea(&circles[i], 0, 0, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
         }
-        MPI_Recv(recv_circles, numCircles * sizeof(struct Circle), MPI_BYTE, 2, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(recv_circles, numCircles * sizeof(struct Circle), MPI_BYTE, 2, tag_circles, MPI_COMM_WORLD,
+                 MPI_STATUS_IGNORE);
         for (int i = 0; i < numCircles; i++) {
             if (circleIsInBR[i])
                 circles[i] = *circleCopy(&recv_circles[i]);
-            circleIsInBR[i] = isCircleOverlappingArea(&circles[i], SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+            circleIsInBR[i] = isCircleOverlappingArea(&circles[i], SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2,
+                                                      SCREEN_HEIGHT / 2);
         }
-        MPI_Recv(recv_circles, numCircles * sizeof(struct Circle), MPI_BYTE, 3, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(recv_circles, numCircles * sizeof(struct Circle), MPI_BYTE, 3, tag_circles, MPI_COMM_WORLD,
+                 MPI_STATUS_IGNORE);
         for (int i = 0; i < numCircles; i++) {
             if (circleIsInTR[i])
                 circles[i] = *circleCopy(&recv_circles[i]);
-            circleIsInTR[i] = isCircleOverlappingArea(&circles[i], SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+            circleIsInTR[i] = isCircleOverlappingArea(&circles[i], SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2,
+                                                      SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
         }
-        MPI_Recv(recv_circles, numCircles * sizeof(struct Circle), MPI_BYTE, 4, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(recv_circles, numCircles * sizeof(struct Circle), MPI_BYTE, 4, tag_circles, MPI_COMM_WORLD,
+                 MPI_STATUS_IGNORE);
         for (int i = 0; i < numCircles; i++) {
             if (circleIsInTL[i])
                 circles[i] = *circleCopy(&recv_circles[i]);
-            circleIsInTL[i] = isCircleOverlappingArea(&circles[i], 0, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+            circleIsInTL[i] = isCircleOverlappingArea(&circles[i], 0, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2,
+                                                      SCREEN_HEIGHT / 2);
         }
         free(recv_circles);
     }
@@ -145,7 +158,8 @@ void update() {
             if (isCircleOverlappingArea(&circles[i], SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2))
                 addCircleToCell(i, rootCell);
         } else if (rank == 3) {
-            if (isCircleOverlappingArea(&circles[i], SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2))
+            if (isCircleOverlappingArea(&circles[i], SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2,
+                                        SCREEN_HEIGHT / 2))
                 addCircleToCell(i, rootCell);
         } else if (rank == 4) {
             if (isCircleOverlappingArea(&circles[i], 0, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2))
@@ -154,11 +168,16 @@ void update() {
     }
 
     if (rank == 0) {
+        frames++;
+        if (frames >= 1000) {
+            clock_t end = clock();
+            double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+            printf("%f seconds for 1000 frames\n", time_spent);
+            frames = 0;
+            begin = end;
+        }
         glutPostRedisplay();
-        glutTimerFunc(30, update, 0);
-    } else {
-        sleep(30);
-        update();
+        glutTimerFunc(0, update, 0);
     }
 }
 
@@ -198,7 +217,7 @@ void initOpenGL(int* argc, char** argv) {
     glutCreateWindow("Bouncing Circles");
     glutCloseFunc(closeWindow);
     glutDisplayFunc(display);
-    glutTimerFunc(100, update, 0);
+    glutTimerFunc(0, update, 0);
     glutMainLoop();
 }
 
