@@ -180,7 +180,9 @@ void move(int circle_id) {
 
 void checkCollisions(int id_1) {
 
-    for (int id_2 = id_1+1; id_2 < numCircles; id_2++) {
+    for (int id_2 = 0; id_2 < numCircles; id_2++) {
+        if (id_1 == id_2)
+            continue;
         if (fabs(circles[id_1].posX - circles[id_2].posX) > circleSize ||
             fabs(circles[id_1].posY - circles[id_2].posY) > circleSize)
             continue;
@@ -199,8 +201,6 @@ void checkCollisions(int id_1) {
 
                 circles[id_1].posX -= overlap * dx;
                 circles[id_1].posY -= overlap * dy;
-                circles[id_2].posX += overlap * dx;
-                circles[id_2].posY += overlap * dy;
 
                 double dvx = circles[id_2].velX - circles[id_1].velX;
                 double dvy = circles[id_2].velY - circles[id_1].velY;
@@ -208,13 +208,9 @@ void checkCollisions(int id_1) {
 
                 circles[id_1].velX += dot * dx;
                 circles[id_1].velY += dot * dy;
-                circles[id_2].velX -= dot * dx;
-                circles[id_2].velY -= dot * dy;
 
                 circles[id_1].velX *= friction;
                 circles[id_1].velY *= friction;
-                circles[id_2].velX *= friction;
-                circles[id_2].velY *= friction;
             }
         }
         checkPosition(&circles[id_1]);
