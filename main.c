@@ -12,9 +12,6 @@
 #define SCREEN_WIDTH 1000
 #define SCREEN_HEIGHT 1000
 
-double dt = 1.0;
-
-int tag_numCircles = 0;
 int tag_circles = 1;
 
 int frames = 0;
