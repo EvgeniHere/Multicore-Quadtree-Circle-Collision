@@ -10,12 +10,13 @@
 
 #define SCREEN_WIDTH 1000
 #define SCREEN_HEIGHT 1000
-#define numCircles 1000
-#define circleSize 10
+#define numCircles 6000
+#define circleSize 5
 #define maxSpawnSpeed (circleSize / 4.0)
 #define maxSpeed (circleSize / 4.0)
 
-#define friction 1.0
+#define friction 0.9
+#define gravity 0.01
 
 
 struct Circle {
@@ -28,6 +29,8 @@ struct Circle {
 struct Circle* circles;
 int world_size;
 int world_rank;
+int frames = 0;
+clock_t begin;
 
 void move(int circle_id);
 
@@ -57,7 +60,7 @@ int main(int argc, char** argv) {
     //circles =  (struct Circle*)malloc( numCircles * sizeof(struct Circle));
     double intpart;
     if(world_rank == 0 && modf(numCircles/(double)world_size, &intpart) != 0) {
-        printf("Number of circles must be dividable by num of processes!\n");
+        printf("%d %d Number of circles must be dividable by num of processes!\n", world_size, numCircles);
         MPI_Abort(MPI_COMM_WORLD, 3);
         exit(1);
     }
@@ -82,7 +85,8 @@ int main(int argc, char** argv) {
         glutInitWindowSize(SCREEN_WIDTH, SCREEN_HEIGHT);
         glutCreateWindow("Bouncing Circles");
         glutDisplayFunc(display);
-        glutTimerFunc(16, update, 0);
+        begin = clock();
+        glutTimerFunc(0, update, 0);
         glutMouseFunc(mouseClick);
         glutMainLoop();
     }
@@ -137,14 +141,23 @@ void update(int counter) {
         move(i);
     }
     MPI_Allgather(&circles[world_rank * h], h * 4, MPI_DOUBLE, circles, h * 4, MPI_DOUBLE, MPI_COMM_WORLD);
+    frames++;
+    if (frames >= 1000) {
+        clock_t end = clock();
+        double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+        printf("%f seconds for 1000 frames\n", time_spent);
+        frames = 0;
+        begin = end;
+    }
     glutPostRedisplay();
-    glutTimerFunc(16, update, counter + 1);
-
+    glutTimerFunc(0, update, counter + 1);
 }
 
 
 void move(int circle_id) {
     struct Circle* circle = &circles[circle_id];
+
+    circle->velY -= gravity;
     if (circle->velX > maxSpeed)
         circle->velX = maxSpeed;
     if (circle->velY > maxSpeed)

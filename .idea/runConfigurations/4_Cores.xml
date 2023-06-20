@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="4 Cores" type="ShConfigurationType">
-    <option name="SCRIPT_TEXT" value="mpiexec -n 4 ./cmake-build-debug/HPC" />
+    <option name="SCRIPT_TEXT" value="mpiexec --use-hwthread-cpus ./cmake-build-debug/HPC" />
     <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
     <option name="SCRIPT_PATH" value="" />
     <option name="SCRIPT_OPTIONS" value="" />
