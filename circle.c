@@ -10,14 +10,13 @@ struct Circle {
 double circleSize = 0;
 double maxSpeed = 0;
 
-double friction = 1.0;
+double friction = 0.9;
 double gravity = 0.01;
 bool gravityState = true;
 
 int circle_max_X = 0;
 int circle_max_y = 0;
 
-void setupCircles(int screen_width, int screen_height);
 void move(struct Circle* circle);
 void checkPosition(struct Circle* circle);
 struct Circle* circleCopy(struct Circle*);

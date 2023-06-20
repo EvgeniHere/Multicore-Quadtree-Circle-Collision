@@ -45,9 +45,9 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    numCircles = 10000;
-    circleSize = 1.0;
-    maxSpeed = circleSize / 2.0;
+    numCircles = 1000;
+    circleSize = 10.0;
+    maxSpeed = circleSize / 4.0;
     maxCirclesPerCell = 3;
     minCellSize = 2 * circleSize + 4 * maxSpeed;
     circle_max_X = SCREEN_WIDTH;
