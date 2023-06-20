@@ -5,23 +5,25 @@
 #include <GL/glut.h>
 #include <GL/gl.h>
 #include <mpi.h>
+#include <time.h>
 
 #define SCREEN_WIDTH 1000.0
 #define SCREEN_HEIGHT 1000.0
 #define numCircles 1000
-#define circleSize 2
+#define circleSize 10
 #define maxCirclesPerCell 3
-#define maxSpawnSpeed (circleSize / 2.0)
-#define maxSpeed (circleSize / 2.0)
+#define maxSpawnSpeed (circleSize / 4.0)
+#define maxSpeed (circleSize / 4.0)
 #define gravity 0.01
 
 bool gravityState = true; //Mouseclick ins Fenster
 bool drawCells = true; //Zeichnet tiefste Zellen des Baums
 double dt = 1.0;
 int selectedCircle = 5742;
-int clearTimer = 0;
-double friction = 1.0;
+double friction = 0.9;
 double minCellSize = 2 * circleSize + 4 * maxSpeed;
+clock_t begin;
+int frames = 0;
 
 struct Circle {
     double posX;
@@ -198,8 +200,18 @@ void update(int counter) {
     updateCell(rootCell);
     collapseAllCollapsableCells(rootCell);
     //splitAllSplittableCells(rootCell);
+
+    frames++;
+    if (frames >= 1000) {
+        clock_t end = clock();
+        double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+        printf("%f seconds for 1000 frames\n", time_spent);
+        frames = 0;
+        begin = end;
+    }
+
     glutPostRedisplay();
-    glutTimerFunc(50.0f/dt, update, counter + 1);
+    glutTimerFunc(0, update, counter + 1);
 }
 
 int main(int argc, char** argv) {
@@ -247,7 +259,8 @@ int main(int argc, char** argv) {
     glutInitWindowSize(SCREEN_WIDTH, SCREEN_HEIGHT);
     glutCreateWindow("Bouncing Circles");
     glutDisplayFunc(display);
-    glutTimerFunc(16, update, 0);
+    begin = clock();
+    glutTimerFunc(0, update, 0);
     glutMouseFunc(mouseClick);
     glutMainLoop();
 
