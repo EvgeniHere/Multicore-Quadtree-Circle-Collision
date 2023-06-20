@@ -11,10 +11,9 @@
 #define SCREEN_WIDTH 1000
 #define SCREEN_HEIGHT 1000
 #define numCircles 1000
-#define circleSize 3
-#define maxSpeed 1.0f
-#define maxSpawnSpeed (circleSize / 2.0)
-#define maxSpeed (circleSize / 2.0)
+#define circleSize 10
+#define maxSpawnSpeed (circleSize / 4.0)
+#define maxSpeed (circleSize / 4.0)
 
 #define friction 1.0
 
@@ -34,7 +33,7 @@ void move(int circle_id);
 
 int random_int(int min, int max);
 double random_double(double min, double max);
-void checkCollisions(int circle_id);
+void checkCollisions(int id_1);
 void display();
 void update(int counter);
 void drawCircle(GLdouble centerX, GLdouble centerY, GLdouble radius);
@@ -124,7 +123,7 @@ void display() {
     for (int i = 0; i < numCircles; i++) {
         GLdouble centerX = circles[i].posX;
         GLdouble centerY = circles[i].posY;
-        GLdouble radius = circleSize;
+        GLdouble radius = circleSize/2.0;
         drawCircle(centerX, centerY, radius);
     }
 
