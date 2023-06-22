@@ -10,7 +10,7 @@ struct Circle {
 double circleSize = 0;
 double maxSpeed = 0;
 
-double friction = 0.9;
+double friction = 1.0;
 double gravity = 0.01;
 bool gravityState = false;
 
@@ -18,8 +18,6 @@ int circle_max_X = 0;
 int circle_max_y = 0;
 
 void move(struct Circle* circle);
-void checkPosition(struct Circle* circle);
-struct Circle* circleCopy(struct Circle*);
 
 void move(struct Circle* circle) {
     if (gravityState)
