@@ -26,7 +26,7 @@ int numProcesses;
 int main(int argc, char** argv);
 void update();
 void display();
-void drawCircle(GLfloat centerX, GLfloat centerY, GLfloat radius, int numSides);
+void drawCircle(GLfloat centerX, GLfloat centerY);
 void initOpenGL(int* argc, char** argv);
 void distributeCircles();
 int sleep(long ms);
@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
 
     numCircles = 100000;
     circleSize = 1.0;
-    maxSpeed = circleSize / 4.0;
+    maxSpeed = circleSize / 2.0;
     maxCirclesPerCell = 3;
     minCellSize = 2 * circleSize + 4 * maxSpeed;
     circle_max_X = SCREEN_WIDTH;
@@ -152,13 +152,15 @@ void update() {
 
     if (rank == 0) {
         frames++;
-        printf("%d\n", frames);
-        if (frames >= 1000) {
-            clock_t end = clock();
-            double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-            printf("%f seconds for 1000 frames\n", time_spent);
+        clock_t end = clock();
+        double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+        if (time_spent >= 10) {
+            printf("%d frames for 10 seconds\n", frames);
+            printf("%f FPS\n", frames / 10.0);
             frames = 0;
             begin = end;
+            //MPI_Finalize();
+            //exit(0);
         }
         glutPostRedisplay();
         glutTimerFunc(0, update, 0);
@@ -250,30 +252,22 @@ void display() {
     glClear(GL_COLOR_BUFFER_BIT);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluOrtho2D(0, SCREEN_WIDTH, 0, SCREEN_HEIGHT); // Set up an orthographic projection
-    glMatrixMode(GL_MODELVIEW); // WIRD DAS GEBRAUCHT???
+    gluOrtho2D(0, SCREEN_WIDTH, 0, SCREEN_HEIGHT);
+    glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    glPointSize(circleSize);
-    glColor3ub(255, 255, 255);
+    //glPointSize(circleSize);
 
     for (int i = 0; i < numProcesses; i++) {
         glBegin(GL_LINE_LOOP);
-        glVertex2f(processes[i].posX + 1, processes[i].posY + 1); // bottom left corner
-        glVertex2f(processes[i].posX + 1, processes[i].posY + 1 + processes[i].height - 2); // top left corner
-        glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1 + processes[i].height - 2); // top right corner
-        glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1); // bottom right corner
+        glVertex2f(processes[i].posX + 1, processes[i].posY + 1);
+        glVertex2f(processes[i].posX + 1, processes[i].posY + 1 + processes[i].height - 2);
+        glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1 + processes[i].height - 2);
+        glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1);
         glEnd();
     }
 
     for (int i = 0; i < numCircles; i++) {
-        GLfloat centerX = circles[i].posX;
-        GLfloat centerY = circles[i].posY;
-        GLfloat radius = circleSize/2.0;
-        if (radius < 1.0f)
-            radius = 1.0f;
-        int numSides = 32;
-
-        drawCircle(centerX, centerY, radius, numSides);
+        drawCircle(circles[i].posX, circles[i].posY);
     }
 
     glutSwapBuffers();
@@ -288,25 +282,24 @@ void closeWindow() {
 void initOpenGL(int* argc, char** argv) {
     glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
     glutInitWindowSize(SCREEN_WIDTH, SCREEN_HEIGHT);
-    glutCreateWindow("Bouncing Circles");
+    glutCreateWindow("HPC Bouncing Circles");
     glutCloseFunc(closeWindow);
     glutDisplayFunc(display);
     glutTimerFunc(0, update, 0);
     glutMainLoop();
 }
 
-void drawCircle(GLfloat centerX, GLfloat centerY, GLfloat radius, int numSides) {
+void drawCircle(GLfloat centerX, GLfloat centerY) {
     if (circleSize <= 2.0f) {
         glBegin(GL_POINTS);
         glVertex2i(centerX, centerY);
         glEnd();
     } else {
-        GLfloat angleIncrement = 2.0 * M_PI / numSides;
         glBegin(GL_POLYGON);
-        for (int i = 0; i < numSides; i++) {
-            GLfloat angle = i * angleIncrement;
-            GLfloat x = centerX + radius * cos(angle);
-            GLfloat y = centerY + radius * sin(angle);
+        for (int i = 0; i < 32; i++) {
+            GLfloat angle = i * (2.0 * M_PI / 32);
+            GLfloat x = centerX + (circleSize/2) * cos(angle);
+            GLfloat y = centerY + (circleSize/2) * sin(angle);
             glVertex2f(x, y);
         }
         glEnd();

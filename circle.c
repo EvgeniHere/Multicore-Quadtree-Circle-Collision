@@ -56,26 +56,3 @@ void move(struct Circle* circle) {
     circle->posX += circle->velX;
     circle->posY += circle->velY;
 }
-
-void checkPosition(struct Circle* circle) {
-    if (circle->posX + circleSize/2.0 > circle_max_X) {
-        circle->posX = circle_max_X - circleSize/2.0;
-    } else if (circle->posX - circleSize/2.0 < 0.0) {
-        circle->posX = circleSize/2.0;
-    }
-
-    if (circle->posY + circleSize/2.0 > circle_max_y) {
-        circle->posY = circle_max_y - circleSize/2.0;
-    } else if (circle->posY - circleSize/2.0 < 0.0) {
-        circle->posY = circleSize/2.0;
-    }
-}
-
-struct Circle* circleCopy(struct Circle* origCircle) {
-    struct Circle* circle = (struct Circle*) malloc(sizeof(struct Circle));
-    circle->posX = origCircle->posX;
-    circle->posY = origCircle->posY;
-    circle->velX = origCircle->velX;
-    circle->velY = origCircle->velY;
-    return circle;
-}
