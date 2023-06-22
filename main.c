@@ -24,6 +24,8 @@ double friction = 0.9;
 double minCellSize = 2 * circleSize + 4 * maxSpeed;
 clock_t begin;
 int frames = 0;
+int rank;
+int world_size;
 
 struct Circle {
     double posX;
@@ -54,7 +56,7 @@ void addCircleToCell(int circle_id, struct Cell* cell);
 bool isCircleOverlappingCellArea(int circle_id, struct Cell* cell);
 void split(struct Cell* cell);
 double random_double(double min, double max);
-void checkCollisions(struct Cell* cell);
+void checkCollisions(int  circle_id, struct Cell* cell);
 void updateCell(struct Cell* cell);
 void printTree(struct Cell* cell, int depth);
 bool deleteCircle(struct Cell* cell, int circle_id);
@@ -191,8 +193,13 @@ void display() {
     glutSwapBuffers();
 }
 
-void update(int counter) {
-    checkCollisions(rootCell);
+void update() {
+    int h = numCircles / world_size;
+    printf("%d\n",h);
+    for (int i = rank * h; i < (rank + 1) * h; i++) {
+        checkCollisions(i, rootCell);
+    }
+    MPI_Allgather(&circles[(int)(rank * h)], (int)h * 4, MPI_DOUBLE, circles, (int)h * 4, MPI_DOUBLE, MPI_COMM_WORLD);
     for (int i = 0; i < numCircles; i++) {
         move(i);
         deleteCircle(rootCell, i);
@@ -209,20 +216,24 @@ void update(int counter) {
         frames = 0;
         begin = end;
     }
-
-    glutPostRedisplay();
-    glutTimerFunc(0, update, counter + 1);
+    if(rank == 0) {
+        glutPostRedisplay();
+        glutTimerFunc(0, update, 0);
+    }
 }
 
 int main(int argc, char** argv) {
     srand(90);
 
     MPI_Init(&argc, &argv);
-
-    int rank, size;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
-
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+    double intpart;
+    if(rank == 0 && modf(numCircles/(double)world_size, &intpart) != 0) {
+        printf("%d %d Number of circles must be dividable by num of processes!\n", world_size, numCircles);
+        MPI_Abort(MPI_COMM_WORLD, 3);
+        exit(1);
+    }
     rootCell = (struct Cell*)malloc(sizeof(struct Cell));
     if (rootCell == NULL) {
         printf("Memory error!");
@@ -241,28 +252,35 @@ int main(int argc, char** argv) {
         exit(1);
     }
     rootCell->subcells = NULL;
-
-    for (int i = 0; i < numCircles; i++) {
-        circles[i].posX = random_double(circleSize/2.0, SCREEN_WIDTH-circleSize/2.0);
-        circles[i].posY = random_double(circleSize/2.0, SCREEN_HEIGHT-circleSize/2.0);
-        circles[i].velX = random_double(-maxSpawnSpeed, maxSpawnSpeed);
-        circles[i].velY = random_double(-maxSpawnSpeed, maxSpawnSpeed);
+    if(rank==0) {
+        for (int i = 0; i < numCircles; i++) {
+            circles[i].posX = random_double(circleSize / 2.0, SCREEN_WIDTH - circleSize / 2.0);
+            circles[i].posY = random_double(circleSize / 2.0, SCREEN_HEIGHT - circleSize / 2.0);
+            circles[i].velX = random_double(-maxSpawnSpeed, maxSpawnSpeed);
+            circles[i].velY = random_double(-maxSpawnSpeed, maxSpawnSpeed);
+        }
     }
-
+    MPI_Bcast(circles, numCircles*4, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     for (int i = 0; i < numCircles; i++) {
         addCircleToCell(i, rootCell);
     }
     updateCell(rootCell);
-
-    glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
-    glutInitWindowSize(SCREEN_WIDTH, SCREEN_HEIGHT);
-    glutCreateWindow("Bouncing Circles");
-    glutDisplayFunc(display);
-    begin = clock();
-    glutTimerFunc(0, update, 0);
-    glutMouseFunc(mouseClick);
-    glutMainLoop();
+    if(rank == 0) {
+        glutInit(&argc, argv);
+        glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
+        glutInitWindowSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+        glutCreateWindow("Bouncing Circles");
+        glutDisplayFunc(display);
+        begin = clock();
+        glutTimerFunc(0, update, 0);
+        glutMouseFunc(mouseClick);
+        glutMainLoop();
+    }
+    else {
+        while(true) {
+            update();
+        }
+    }
 
     return 0;
 }
@@ -318,18 +336,23 @@ void checkPosition(struct Circle* circle) {
     }
 }
 
-void checkCollisions(struct Cell* cell) {
+void checkCollisions(int  circle_id, struct Cell* cell) {
     if (!cell->isLeaf) {
         for (int i = 0; i < 4; i++)
-            checkCollisions(&cell->subcells[i]);
+            if(isCircleOverlappingCellArea(circle_id, &cell->subcells[i])) {
+                checkCollisions(circle_id, &cell->subcells[i]);
+            }
         return;
     }
 
     for (int i = 0; i < cell->numCirclesInCell - 1; i++) {
         int id_1 = cell->circle_ids[i];
 
-        for (int j = i + 1; j < cell->numCirclesInCell; j++) {
+        for (int j = 0; j < cell->numCirclesInCell; j++) {
             int id_2 = cell->circle_ids[j];
+
+            if(id_1 == id_2)
+                continue;
 
             if (fabs(circles[id_1].posX - circles[id_2].posX) > circleSize ||
                 fabs(circles[id_1].posY - circles[id_2].posY) > circleSize)
@@ -349,8 +372,8 @@ void checkCollisions(struct Cell* cell) {
 
                     circles[id_1].posX -= overlap * dx;
                     circles[id_1].posY -= overlap * dy;
-                    circles[id_2].posX += overlap * dx;
-                    circles[id_2].posY += overlap * dy;
+                    //circles[id_2].posX += overlap * dx;
+                    //circles[id_2].posY += overlap * dy;
 
                     double dvx = circles[id_2].velX - circles[id_1].velX;
                     double dvy = circles[id_2].velY - circles[id_1].velY;
@@ -358,22 +381,22 @@ void checkCollisions(struct Cell* cell) {
 
                     circles[id_1].velX += dot * dx;
                     circles[id_1].velY += dot * dy;
-                    circles[id_2].velX -= dot * dx;
-                    circles[id_2].velY -= dot * dy;
+                    //circles[id_2].velX -= dot * dx;
+                    //circles[id_2].velY -= dot * dy;
 
                     circles[id_1].velX *= friction;
                     circles[id_1].velY *= friction;
-                    circles[id_2].velX *= friction;
-                    circles[id_2].velY *= friction;
+                    //circles[id_2].velX *= friction;
+                    //circles[id_2].velY *= friction;
                 }
             }
         }
     }
 
-    for (int i = 0; i < cell->numCirclesInCell; i++) {
+    /*for (int i = 0; i < cell->numCirclesInCell; i++) {
         int id = cell->circle_ids[i];
         checkPosition(&circles[id]);
-    }
+    }*/
 }
 
 bool isCircleCloseToCellArea(int circle_id, struct Cell* cell) {
