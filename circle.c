@@ -12,7 +12,7 @@ double maxSpeed = 0;
 
 double friction = 0.9;
 double gravity = 0.01;
-bool gravityState = true;
+bool gravityState = false;
 
 int circle_max_X = 0;
 int circle_max_y = 0;
