@@ -4,6 +4,13 @@
 #include <math.h>
 #include "circle.c"
 
+struct Rectangle {
+    double posX;
+    double posY;
+    double width;
+    double height;
+};
+
 struct Cell {
     double posX;
     double posY;
@@ -19,6 +26,9 @@ int maxCirclesPerCell;
 double minCellSize;
 
 struct Cell* rootCell;
+struct Rectangle* leaf_rects;
+
+int numCells = 0;
 
 int numCircles;
 struct Circle* circles;
@@ -38,6 +48,33 @@ int treeWidth;
 int treeHeight;
 int treePosX;
 int treePosY;
+
+int countLeafCells(struct Cell* cell) {
+    if (cell->isLeaf) {
+        return 1;
+    }
+
+    int numLeafs = 0;
+    for (int i = 0; i < 4; i++) {
+        numLeafs += countLeafCells(&cell->subcells[i]);
+    }
+    return numLeafs;
+}
+
+void calcLeafRectangles(struct Cell* cell) {
+    if (cell->isLeaf) {
+        struct Rectangle* rect = (struct Rectangle*) malloc(sizeof(struct Rectangle));
+        rect->posX = cell->posX;
+        rect->posY = cell->posY;
+        rect->width = cell->cellWidth;
+        rect->height = cell->cellHeight;
+        leaf_rects[numCells++] = *rect;
+        return;
+    }
+    for (int i = 0; i < 4; i++) {
+        calcLeafRectangles(&cell->subcells[i]);
+    }
+}
 
 void rebuildTree() {
     rootCell = (struct Cell*)malloc(sizeof(struct Cell));
@@ -61,7 +98,10 @@ void rebuildTree() {
         addCircleToCell(i, rootCell);
         move(&circles[i]);
     }
-    freeTree(rootCell);
+    numCells = countLeafCells(rootCell);
+    leaf_rects = (struct Rectangle*) malloc(numCells * sizeof(struct Rectangle));
+    numCells = 0;
+    calcLeafRectangles(rootCell);
 }
 
 void freeTree(struct Cell* cell) {
