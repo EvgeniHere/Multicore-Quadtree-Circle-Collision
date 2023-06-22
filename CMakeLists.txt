@@ -3,6 +3,7 @@ project(HPC C)
 
 set(CMAKE_C_STANDARD 11)
 
+set(CMAKE_PREFIX_PATH "/opt/sw/rev/21.12/haswell/gcc-9.3.0/scorep-7.0-5z46kv" ${CMAKE_PREFIX_PATH})
 set(Scorep_INCLUDE_DIRS "/opt/sw/rev/21.12/haswell/gcc-9.3.0/scorep-7.0-5z46kv/include")
 set(Scorep_LIBRARIES "/opt/sw/rev/21.12/haswell/gcc-9.3.0/scorep-7.0-5z46kv/lib")
 include_directories(${Scorep_INCLUDE_DIRS})
