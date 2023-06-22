@@ -207,45 +207,6 @@ void distributeCircles() {
     }
 }
 
-void distributeCircles2() {
-    for (int i = 0; i < numProcesses; i++) {
-        MPI_Recv(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i + 1, tag_circles, MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-        for (int j = 0; j < processes[i].numCircles; j++) {
-            circles[processes[i].circle_ids[j]] = processes[i].circles[j];
-            if (isCircleOverlappingArea(&processes[i].circles[j], processes[j].posX, processes[j].posY, processes[j].width, processes[j].height))
-                continue;
-            for (int k = 0; k < numProcesses; k++) {
-                if (k == i)
-                    continue;
-                if (!isCircleOverlappingArea(&processes[i].circles[j], processes[k].posX, processes[k].posY, processes[k].width, processes[k].height))
-                    continue;
-                bool alreadyContains = false;
-                for (int l = 0; l < processes[k].numCircles; l++) {
-                    if (processes[k].circle_ids[l] != processes[i].circle_ids[j])
-                        continue;
-                    alreadyContains = true;
-                    break;
-                }
-                if (alreadyContains)
-                    continue;
-                processes[k].numCircles++;
-                processes[k].circles = (struct Circle*) realloc(processes[k].circles, processes[k].numCircles * sizeof(struct Circle));
-                processes[k].circles[processes[k].numCircles-1] = processes[i].circles[j];
-                processes[k].circle_ids[processes[k].numCircles-1] = processes[i].circle_ids[j];
-            }
-            for (int k = j; k < processes[i].numCircles-1; k++) {
-                processes[i].circles[k] = processes[i].circles[k+1];
-                processes[i].circle_ids[k] = processes[i].circle_ids[k+1];
-            }
-            processes[i].numCircles--;
-        }
-    }
-    for (int i = 0; i < numProcesses; i++) {
-        processes[i].circles = (struct Circle*) realloc(processes[i].circles, processes[i].numCircles * sizeof(struct Circle));
-        processes[i].circle_ids = (int*) realloc(processes[i].circle_ids, processes[i].numCircles * sizeof(int));
-    }
-}
-
 void display() {
     glClear(GL_COLOR_BUFFER_BIT);
     glMatrixMode(GL_PROJECTION);
@@ -302,24 +263,4 @@ void drawCircle(GLfloat centerX, GLfloat centerY) {
         }
         glEnd();
     }
-}
-
-
-int sleep(long tms) {
-    struct timespec ts;
-    int ret;
-
-    if (tms < 0) {
-        errno = EINVAL;
-        return -1;
-    }
-
-    ts.tv_sec = tms / 1000;
-    ts.tv_nsec = (tms % 1000) * 1000000;
-
-    do {
-        ret = nanosleep(&ts, &ts);
-    } while (ret && errno == EINTR);
-
-    return ret;
 }
