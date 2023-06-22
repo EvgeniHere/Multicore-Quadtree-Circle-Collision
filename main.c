@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     if (size < 2) {
-        fprintf(stderr, "This program requires at least 5 processes.\n");
+        fprintf(stderr, "This program requires at least 2 processes.\n");
         MPI_Finalize();
         return 1;
     }
