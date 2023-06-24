@@ -195,7 +195,6 @@ void display() {
 
 void update() {
     int h = numCircles / world_size;
-    printf("%d\n",h);
     for (int i = rank * h; i < (rank + 1) * h; i++) {
         checkCollisions(i, rootCell);
     }
@@ -207,16 +206,15 @@ void update() {
     updateCell(rootCell);
     collapseAllCollapsableCells(rootCell);
     //splitAllSplittableCells(rootCell);
-
-    frames++;
-    if (frames >= 1000) {
-        clock_t end = clock();
-        double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-        printf("%f seconds for 1000 frames\n", time_spent);
-        frames = 0;
-        begin = end;
-    }
     if(rank == 0) {
+        frames++;
+        if (frames >= 1000) {
+            clock_t end = clock();
+            double time_spent = (double) (end - begin) / CLOCKS_PER_SEC;
+            printf("%f seconds for 1000 frames\n", time_spent);
+            frames = 0;
+            begin = end;
+        }
         glutPostRedisplay();
         glutTimerFunc(0, update, 0);
     }
@@ -281,7 +279,7 @@ int main(int argc, char** argv) {
             update();
         }
     }
-
+    MPI_Finalize();
     return 0;
 }
 
@@ -338,65 +336,59 @@ void checkPosition(struct Circle* circle) {
 
 void checkCollisions(int  circle_id, struct Cell* cell) {
     if (!cell->isLeaf) {
-        for (int i = 0; i < 4; i++)
-            if(isCircleOverlappingCellArea(circle_id, &cell->subcells[i])) {
+        for (int i = 0; i < 4; i++) {
+            if (isCircleOverlappingCellArea(circle_id, &cell->subcells[i])) {
                 checkCollisions(circle_id, &cell->subcells[i]);
             }
+        }
         return;
     }
+    int id_1 = circle_id;
 
-    for (int i = 0; i < cell->numCirclesInCell - 1; i++) {
-        int id_1 = cell->circle_ids[i];
+    for (int j = 0; j < cell->numCirclesInCell; j++) {
+        int id_2 = cell->circle_ids[j];
 
-        for (int j = 0; j < cell->numCirclesInCell; j++) {
-            int id_2 = cell->circle_ids[j];
+        if(id_1 == id_2)
+            continue;
 
-            if(id_1 == id_2)
-                continue;
+        if (fabs(circles[id_1].posX - circles[id_2].posX) > circleSize ||
+            fabs(circles[id_1].posY - circles[id_2].posY) > circleSize)
+            continue;
 
-            if (fabs(circles[id_1].posX - circles[id_2].posX) > circleSize ||
-                fabs(circles[id_1].posY - circles[id_2].posY) > circleSize)
-                continue;
+        double dx = circles[id_2].posX - circles[id_1].posX;
+        double dy = circles[id_2].posY - circles[id_1].posY;
+        double distSquared = dx * dx + dy * dy;
+        double sum_r = circleSize;
 
-            double dx = circles[id_2].posX - circles[id_1].posX;
-            double dy = circles[id_2].posY - circles[id_1].posY;
-            double distSquared = dx * dx + dy * dy;
-            double sum_r = circleSize;
-
+        if (distSquared < sum_r * sum_r) {
             if (distSquared < sum_r * sum_r) {
-                if (distSquared < sum_r * sum_r) {
-                    double dist = sqrt(distSquared);
-                    double overlap = (sum_r - dist) / 2.0;
-                    dx /= dist;
-                    dy /= dist;
+                double dist = sqrt(distSquared);
+                double overlap = (sum_r - dist) / 2.0;
+                dx /= dist;
+                dy /= dist;
 
-                    circles[id_1].posX -= overlap * dx;
-                    circles[id_1].posY -= overlap * dy;
-                    //circles[id_2].posX += overlap * dx;
-                    //circles[id_2].posY += overlap * dy;
+                circles[id_1].posX -= overlap * dx;
+                circles[id_1].posY -= overlap * dy;
+                circles[id_2].posX += overlap * dx;
+                circles[id_2].posY += overlap * dy;
 
-                    double dvx = circles[id_2].velX - circles[id_1].velX;
-                    double dvy = circles[id_2].velY - circles[id_1].velY;
-                    double dot = dvx * dx + dvy * dy;
+                double dvx = circles[id_2].velX - circles[id_1].velX;
+                double dvy = circles[id_2].velY - circles[id_1].velY;
+                double dot = dvx * dx + dvy * dy;
 
-                    circles[id_1].velX += dot * dx;
-                    circles[id_1].velY += dot * dy;
-                    //circles[id_2].velX -= dot * dx;
-                    //circles[id_2].velY -= dot * dy;
+                circles[id_1].velX += dot * dx;
+                circles[id_1].velY += dot * dy;
+                //circles[id_2].velX -= dot * dx;
+                //circles[id_2].velY -= dot * dy;
 
-                    circles[id_1].velX *= friction;
-                    circles[id_1].velY *= friction;
-                    //circles[id_2].velX *= friction;
-                    //circles[id_2].velY *= friction;
-                }
+                circles[id_1].velX *= friction;
+                circles[id_1].velY *= friction;
+                //circles[id_2].velX *= friction;
+                //circles[id_2].velY *= friction;
             }
         }
     }
-
-    /*for (int i = 0; i < cell->numCirclesInCell; i++) {
-        int id = cell->circle_ids[i];
-        checkPosition(&circles[id]);
-    }*/
+    checkPosition(&circles[circle_id]);
 }
 
 bool isCircleCloseToCellArea(int circle_id, struct Cell* cell) {
