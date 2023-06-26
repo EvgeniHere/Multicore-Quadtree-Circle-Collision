@@ -3,9 +3,9 @@
 #include <time.h>
 #include <math.h>
 #include <stdbool.h>
-#include <mpi/mpi.h>
-#include <GL/glut.h>
-#include <GL/gl.h>
+#include <mpi.h>
+//#include <GL/glut.h>
+//#include <GL/gl.h>
 
 
 #define SCREEN_WIDTH 1000
@@ -39,7 +39,7 @@ double random_double(double min, double max);
 void checkCollisions(int id_1);
 void display();
 void update(int counter);
-void drawCircle(GLdouble centerX, GLdouble centerY, GLdouble radius);
+//void drawCircle(GLdouble centerX, GLdouble centerY, GLdouble radius);
 void checkPosition(struct Circle* circle);
 
 void mouseClick(int button, int state, int x, int y) {
@@ -80,29 +80,30 @@ int main(int argc, char** argv) {
     MPI_Bcast(circles, numCircles*4, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     double h = numCircles / (double)world_size;
     if(world_rank==0) {
-        glutInit(&argc, argv);
-        glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
-        glutInitWindowSize(SCREEN_WIDTH, SCREEN_HEIGHT);
-        glutCreateWindow("Bouncing Circles");
-        glutDisplayFunc(display);
         begin = clock();
-        glutTimerFunc(0, update, 0);
-        glutMouseFunc(mouseClick);
-        glutMainLoop();
     }
-    else {
-        while(true) {
-            for (int i = floor(world_rank * h); i < ceil((world_rank + 1) * h); i++) {
-                checkCollisions(i);
-                move(i);
+    while(true) {
+        for (int i = floor(world_rank * h); i < ceil((world_rank + 1) * h); i++) {
+            checkCollisions(i);
+            move(i);
+        }
+        MPI_Allgather(&circles[(int) (world_rank * h)], (int) h * 4, MPI_DOUBLE, circles, (int) h * 4, MPI_DOUBLE,
+                      MPI_COMM_WORLD);
+        if (world_rank == 0) {
+            frames++;
+            if (frames >= 1000) {
+                clock_t end = clock();
+                double time_spent = (double) (end - begin) / CLOCKS_PER_SEC;
+                printf("%f seconds for 1000 frames\n", time_spent);
+                frames = 0;
+                begin = end;
             }
-            MPI_Allgather(&circles[(int)(world_rank * h)], (int)h * 4, MPI_DOUBLE, circles, (int)h * 4, MPI_DOUBLE, MPI_COMM_WORLD);
         }
     }
     MPI_Finalize();
     exit(0);
 }
-void drawCircle(GLdouble centerX, GLdouble centerY, GLdouble radius) {
+/*void drawCircle(GLdouble centerX, GLdouble centerY, GLdouble radius) {
     GLdouble angleIncrement = 2.0 * M_PI / 32;
     glBegin(GL_POLYGON);
     for (int i = 0; i < 32; i++) {
@@ -112,10 +113,10 @@ void drawCircle(GLdouble centerX, GLdouble centerY, GLdouble radius) {
         glVertex2d(x, y);
     }
     glEnd();
-}
+}*/
 
 
-void display() {
+/*void display() {
     glClear(GL_COLOR_BUFFER_BIT);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
@@ -132,7 +133,7 @@ void display() {
     }
 
     glutSwapBuffers();
-}
+}*/
 
 void update(int counter) {
     int h = numCircles / world_size;
@@ -149,8 +150,8 @@ void update(int counter) {
         frames = 0;
         begin = end;
     }
-    glutPostRedisplay();
-    glutTimerFunc(0, update, counter + 1);
+    //glutPostRedisplay();
+    //glutTimerFunc(0, update, counter + 1);
 }
 
 
