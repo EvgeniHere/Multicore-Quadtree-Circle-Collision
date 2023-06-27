@@ -2,15 +2,15 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdbool.h>
-#include <GL/glut.h>
-#include <GL/gl.h>
+//#include <GL/glut.h>
+//#include <GL/gl.h>
 #include <mpi.h>
 #include <time.h>
 
 #define SCREEN_WIDTH 1000.0
 #define SCREEN_HEIGHT 1000.0
-#define numCircles 1000
-#define circleSize 10
+#define numCircles 6000
+#define circleSize 5
 #define maxCirclesPerCell 3
 #define maxSpawnSpeed (circleSize / 4.0)
 #define maxSpeed (circleSize / 4.0)
@@ -61,7 +61,7 @@ bool deleteCircle(struct Cell* cell, int circle_id);
 bool cellContainsCircle(struct Cell* cell, int circle_id);
 void collapseAllCollapsableCells(struct Cell* cell);
 
-void mouseClick(int button, int state, int x, int y) {
+/*void mouseClick(int button, int state, int x, int y) {
     if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
         gravityState = !gravityState;
         printTree(rootCell, 0);
@@ -72,6 +72,7 @@ void mouseClick(int button, int state, int x, int y) {
                 selectedCircle = i;
             }
         }*/
+/*
     } else if (button == 3) {
         dt += 0.1f;
         if (dt > 5.0f)
@@ -122,6 +123,7 @@ void drawTree(struct Cell* cell, int depth) {
             glVertex2f(cell->posX + cell->cellWidth / 2, cell->posY + cell->cellHeight / 2);   // Top-right point
             glEnd();
         }*/
+/*
     } else {
         if (cell->isLeaf)
             return;
@@ -190,7 +192,7 @@ void display() {
 
     glutSwapBuffers();
 }
-
+*/
 void update(int counter) {
     checkCollisions(rootCell);
     for (int i = 0; i < numCircles; i++) {
@@ -202,26 +204,20 @@ void update(int counter) {
     //splitAllSplittableCells(rootCell);
 
     frames++;
-    if (frames >= 1000) {
-        clock_t end = clock();
-        double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-        printf("%f seconds for 1000 frames\n", time_spent);
+    clock_t end = clock();
+    double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+    if (time_spent >= 10) {
+        printf("%f fps\n", frames/time_spent);
         frames = 0;
         begin = end;
     }
 
-    glutPostRedisplay();
-    glutTimerFunc(0, update, counter + 1);
+    //glutPostRedisplay();
+    //glutTimerFunc(0, update, counter + 1);
 }
 
 int main(int argc, char** argv) {
     srand(90);
-
-    MPI_Init(&argc, &argv);
-
-    int rank, size;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     rootCell = (struct Cell*)malloc(sizeof(struct Cell));
     if (rootCell == NULL) {
@@ -253,7 +249,7 @@ int main(int argc, char** argv) {
         addCircleToCell(i, rootCell);
     }
     updateCell(rootCell);
-
+    /*
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
     glutInitWindowSize(SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -263,7 +259,10 @@ int main(int argc, char** argv) {
     glutTimerFunc(0, update, 0);
     glutMouseFunc(mouseClick);
     glutMainLoop();
-
+    */
+    while (true) {
+        update(0);
+    }
     return 0;
 }
 
@@ -425,10 +424,6 @@ void collapse(struct Cell* cell, struct Cell* originCell) {
             if (!isCircleOverlappingCellArea(circle_id, originCell) || cellContainsCircle(originCell, circle_id))
                 continue;
             if (originCell->numCirclesInCell > maxCirclesPerCell) {
-                printTree(originCell, 0);
-                for(int j = 0; j < 4; j++) {
-                    printTree(&originCell->subcells[j], 0);
-                }
                 printf("WTF!\n");
                 return;
             } else {
