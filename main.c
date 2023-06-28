@@ -79,9 +79,7 @@ int main(int argc, char** argv) {
     }
     MPI_Bcast(circles, numCircles*4, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     double h = numCircles / (double)world_size;
-    if(world_rank==0) {
-        begin = clock();
-    }
+    begin = clock();
     while(true) {
         for (int i = floor(world_rank * h); i < ceil((world_rank + 1) * h); i++) {
             checkCollisions(i);
@@ -89,17 +87,15 @@ int main(int argc, char** argv) {
         }
         MPI_Allgather(&circles[(int) (world_rank * h)], (int) h * 4, MPI_DOUBLE, circles, (int) h * 4, MPI_DOUBLE,
                       MPI_COMM_WORLD);
-        if (world_rank == 0) {
-            frames++;
-            clock_t end = clock();
-            double time_spent = (double) (end - begin) / CLOCKS_PER_SEC;
-            if (time_spent >= 10) {
-                printf("%f fps\n", frames/time_spent);
-                frames = 0;
-                begin = end;
-                exit(0);
-            }
-
+        frames++;
+        clock_t end = clock();
+        double time_spent = (double) (end - begin) / CLOCKS_PER_SEC;
+        if (time_spent >= 10) {
+            printf("%f fps\n", frames/time_spent);
+            frames = 0;
+            begin = end;
+            MPI_Finalize();
+            exit(0);
         }
     }
     MPI_Finalize();
