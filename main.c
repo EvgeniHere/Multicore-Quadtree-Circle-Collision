@@ -19,6 +19,9 @@ int rank, size;
 
 int numProcesses;
 
+int numAllCircles;
+struct Circle* allCircles;
+
 int main(int argc, char** argv);
 void update();
 void distributeCircles();
@@ -42,31 +45,32 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    if (size < 2) {
-        fprintf(stderr, "This program requires at least 2 processes.\n");
+    if (size < 1) {
+        fprintf(stderr, "This program requires at least 1 process.\n");
         MPI_Finalize();
         return 1;
     }
 
-    numProcesses = size - 1;
-
-    numCircles = 6000;
-    circleSize = 5;
-    maxSpeed = (circleSize / 4.0);
-    maxCirclesPerCell = 3;
-    minCellSize = 2 * circleSize + 2 * maxSpeed;
+    numProcesses = size;
+    numAllCircles = 100000;
+    circleSize = 1.0;
+    maxSpeed = 1.0;
+    maxCirclesPerCell = 20;
+    minCellSize = 2 * circleSize + 4 * maxSpeed;
     circle_max_X = SCREEN_WIDTH;
     circle_max_y = SCREEN_HEIGHT;
 
+    numCircles = numAllCircles/numProcesses;
     circles = (struct Circle *) malloc(sizeof(struct Circle) * numCircles);
+    allCircles = (struct Circle *) malloc(sizeof(struct Circle) * numAllCircles);
 
     if (rank == 0) {
         srand(90);
-        for (int i = 0; i < numCircles; i++) {
-            circles[i].posX = random_double(circleSize / 2.0, SCREEN_WIDTH - circleSize / 2.0);
-            circles[i].posY = random_double(circleSize / 2.0, SCREEN_HEIGHT - circleSize / 2.0);
-            circles[i].velX = random_double(-maxSpeed, maxSpeed);
-            circles[i].velY = random_double(-maxSpeed, maxSpeed);
+        for (int i = 0; i < numAllCircles; i++) {
+            allCircles[i].posX = random_double(circleSize / 2.0, SCREEN_WIDTH - circleSize / 2.0);
+            allCircles[i].posY = random_double(circleSize / 2.0, SCREEN_HEIGHT - circleSize / 2.0);
+            allCircles[i].velX = random_double(-maxSpeed, maxSpeed);
+            allCircles[i].velY = random_double(-maxSpeed, maxSpeed);
         }
 
         processes = (struct Process*) malloc(numProcesses * sizeof(struct Process));
@@ -95,11 +99,17 @@ int main(int argc, char** argv) {
         }
 
         for (int i = 0; i < numProcesses; i++) {
-            processes[i].circles = (struct Circle *) malloc(processes[i].numCircles * sizeof(struct Circle));
+            processes[i].circles = (struct Circle *) malloc(numCircles * sizeof(struct Circle));
             processes[i].circle_ids = (int *) malloc(processes[i].numCircles * sizeof(int));
             processes[i].numCircles = 0;
-            MPI_Send(&processes[i], sizeof(struct Process), MPI_BYTE, i + 1, tag_process, MPI_COMM_WORLD);
+            if (i > 0)
+                MPI_Send(&processes[i], sizeof(struct Process), MPI_BYTE, i, tag_process, MPI_COMM_WORLD);
         }
+
+        treePosX = processes[0].posX;
+        treePosY = processes[0].posY;
+        treeWidth = processes[0].width;
+        treeHeight = processes[0].height;
 
         distributeCircles();
     } else {
@@ -132,11 +142,18 @@ void update() {
         MPI_Send(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD);
         freeTree(rootCell);
     } else {
-        for (int i = 0; i < numProcesses; i++) {
-            MPI_Recv(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i + 1, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        rebuildTree();
+        processes[0].circles = circles;
+        freeTree(rootCell);
+        for (int i = 1; i < numProcesses; i++) {
+            MPI_Recv(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             for (int j = 0; j < processes[i].numCircles; j++) {
-                circles[processes[i].circle_ids[j]] = processes[i].circles[j];
+                allCircles[processes[i].circle_ids[j]] = processes[i].circles[j];
             }
+        }
+
+        for (int j = 0; j < processes[0].numCircles; j++) {
+            allCircles[processes[0].circle_ids[j]] = processes[0].circles[j];
         }
         distributeCircles();
     }
@@ -150,8 +167,8 @@ void update() {
             printf("%f FPS\n", frames / 10.0);
             frames = 0;
             begin = end;
-            MPI_Finalize();
-            exit(0);
+            //MPI_Finalize();
+            //exit(0);
         }
     }
 }
@@ -162,9 +179,9 @@ void distributeCircles() {
             processes[i].numCircles = 0;
         }
 
-        for (int i = 0; i < numCircles; i++) {
+        for (int i = 0; i < numAllCircles; i++) {
             for (int j = 0; j < numProcesses; j++) {
-                if (!isCircleOverlappingArea(&circles[i], processes[j].posX, processes[j].posY, processes[j].width, processes[j].height))
+                if (!isCircleOverlappingArea(&allCircles[i], processes[j].posX, processes[j].posY, processes[j].width, processes[j].height))
                     continue;
                 processes[j].numCircles++;
             }
@@ -176,18 +193,27 @@ void distributeCircles() {
             processes[i].numCircles = 0;
         }
 
-        for (int i = 0; i < numCircles; i++) {
+        for (int i = 0; i < numAllCircles; i++) {
             for (int j = 0; j < numProcesses; j++) {
-                if (!isCircleOverlappingArea(&circles[i], processes[j].posX, processes[j].posY, processes[j].width, processes[j].height))
+                if (!isCircleOverlappingArea(&allCircles[i], processes[j].posX, processes[j].posY, processes[j].width, processes[j].height))
                     continue;
-                processes[j].circles[processes[j].numCircles] = circles[i];
+                processes[j].circles[processes[j].numCircles] = allCircles[i];
                 processes[j].circle_ids[processes[j].numCircles] = i;
                 processes[j].numCircles++;
             }
         }
-        for (int i = 0; i < numProcesses; i++) {
-            MPI_Send(&processes[i].numCircles, 1, MPI_INT, i + 1, tag_numCircles, MPI_COMM_WORLD);
-            MPI_Send(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i + 1, tag_circles, MPI_COMM_WORLD);
+
+        numCircles = processes[0].numCircles;
+        circles = processes[0].circles;
+        for (int i = 1; i < numProcesses; i++) {
+            MPI_Send(&processes[i].numCircles, 1, MPI_INT, i, tag_numCircles, MPI_COMM_WORLD);
+            MPI_Send(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i, tag_circles, MPI_COMM_WORLD);
         }
     }
+}
+
+void closeWindow() {
+    MPI_Abort(MPI_COMM_WORLD, 0);
+    MPI_Finalize();
+    exit(0);
 }
