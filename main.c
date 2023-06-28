@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
-    srand(time(NULL));
+    srand(90);
     circles = malloc(numCircles * sizeof(struct Circle));
 
     if(world_rank==0) {
@@ -91,13 +91,15 @@ int main(int argc, char** argv) {
                       MPI_COMM_WORLD);
         if (world_rank == 0) {
             frames++;
-            if (frames >= 1000) {
-                clock_t end = clock();
-                double time_spent = (double) (end - begin) / CLOCKS_PER_SEC;
-                printf("%f seconds for 1000 frames\n", time_spent);
+            clock_t end = clock();
+            double time_spent = (double) (end - begin) / CLOCKS_PER_SEC;
+            if (time_spent >= 10) {
+                printf("%f fps\n", frames/time_spent);
                 frames = 0;
                 begin = end;
+                exit(0);
             }
+
         }
     }
     MPI_Finalize();
