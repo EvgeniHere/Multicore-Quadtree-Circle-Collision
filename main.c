@@ -50,10 +50,10 @@ int main(int argc, char** argv) {
 
     numProcesses = size - 1;
 
-    numCircles = 100000;
-    circleSize = 1.0;
-    maxSpeed = 1.0;
-    maxCirclesPerCell = 15;
+    numCircles = 6000;
+    circleSize = 5;
+    maxSpeed = (circleSize / 4.0);
+    maxCirclesPerCell = 3;
     minCellSize = 2 * circleSize + 2 * maxSpeed;
     circle_max_X = SCREEN_WIDTH;
     circle_max_y = SCREEN_HEIGHT;
@@ -150,8 +150,8 @@ void update() {
             printf("%f FPS\n", frames / 10.0);
             frames = 0;
             begin = end;
-            //MPI_Finalize();
-            //exit(0);
+            MPI_Finalize();
+            exit(0);
         }
     }
 }
