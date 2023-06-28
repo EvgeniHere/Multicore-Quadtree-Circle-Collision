@@ -1,10 +1,10 @@
 #include <stdlib.h>
-#include <GL/glut.h>
-#include <GL/gl.h>
+//#include <GL/glut.h>
+//#include <GL/gl.h>
 #include <mpi.h>
 #include "window.c"
 #include "quadtree.c"
-#include <GL/freeglut.h>
+//#include <GL/freeglut.h>
 #include <stdio.h>
 #include <errno.h>
 #include <time.h>
@@ -28,7 +28,7 @@ int numProcesses;
 int main(int argc, char** argv);
 void update();
 void display();
-void drawCircle(GLfloat centerX, GLfloat centerY);
+//void drawCircle(GLfloat centerX, GLfloat centerY);
 void initOpenGL(int* argc, char** argv);
 void distributeCircles();
 int sleep(long ms);
@@ -125,15 +125,15 @@ int main(int argc, char** argv) {
         treeHeight = curProcess->height;
     }
 
-    if (rank == 0) {
-        glutInit((int *) &argc, argv);
-        begin = clock();
-        initOpenGL(&argc, argv);
-    } else {
+    //glutInit((int *) &argc, argv);
+
+    //initOpenGL(&argc, argv);
+    //} else {
+    begin = clock();
         while (true) {
             update();
         }
-    }
+    //}
 
     MPI_Finalize();
     return 0;
@@ -162,21 +162,18 @@ void update() {
         distributeCircles();
     }
 
-    if (rank == 0) {
-        frames++;
-        clock_t end = clock();
-        double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-        if (time_spent >= 10) {
-            printf("%d frames for 10 seconds\n", frames);
-            printf("%f FPS\n", frames / 10.0);
-            frames = 0;
-            begin = end;
-            //MPI_Finalize();
-            //exit(0);
-        }
-        glutPostRedisplay();
-        glutTimerFunc(0, update, 0);
+
+    frames++;
+    clock_t end = clock();
+    double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+    if (time_spent >= 10) {
+        printf("%f FPS\n", frames / time_spent);
+        frames = 0;
+        begin = end;
+        MPI_Finalize();
+        exit(0);
     }
+
 }
 
 void distributeCircles() {
@@ -215,7 +212,7 @@ void distributeCircles() {
         }
     }
 }
-
+/*
 void display() {
     glClear(GL_COLOR_BUFFER_BIT);
     glMatrixMode(GL_PROJECTION);
@@ -283,7 +280,7 @@ void drawCircle(GLfloat centerX, GLfloat centerY) {
     }
 }
 
-
+*/
 int sleep(long tms) {
     struct timespec ts;
     int ret;
