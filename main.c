@@ -64,7 +64,7 @@ int main(int argc, char** argv) {
 
     numCircles = 100000;
     circleSize = 1.0;
-    maxSpeed = circleSize / 2.0;
+    maxSpeed = 1.0;
     maxCirclesPerCell = 20;
     minCellSize = 2 * circleSize + 4 * maxSpeed;
     circle_max_X = SCREEN_WIDTH;
@@ -186,14 +186,11 @@ void distributeCircles() {
         }
 
         for (int i = 0; i < numCircles; i++) {
-            int process_index = 0;
             for (int j = 0; j < numProcesses; j++) {
                 if (!isCircleOverlappingArea(&circles[i], processes[j].posX, processes[j].posY, processes[j].width, processes[j].height))
                     continue;
-                process_index = j;
-                break;
+                processes[j].numCircles++;
             }
-            processes[process_index].numCircles++;
         }
 
         for (int i = 0; i < numProcesses; i++) {
@@ -203,16 +200,14 @@ void distributeCircles() {
         }
 
         for (int i = 0; i < numCircles; i++) {
-            int process_index = 0;
             for (int j = 0; j < numProcesses; j++) {
                 if (!isCircleOverlappingArea(&circles[i], processes[j].posX, processes[j].posY, processes[j].width, processes[j].height))
                     continue;
-                process_index = j;
-                break;
+                processes[j].circles[processes[j].numCircles] = circles[i];
+                processes[j].circle_ids[processes[j].numCircles] = i;
+                processes[j].numCircles++;
             }
-            processes[process_index].circles[processes[process_index].numCircles] = circles[i];
-            processes[process_index].circle_ids[processes[process_index].numCircles] = i;
-            processes[process_index].numCircles++;
+
         }
         for (int i = 0; i < numProcesses; i++) {
             MPI_Send(&processes[i].numCircles, 1, MPI_INT, i + 1, tag_numCircles, MPI_COMM_WORLD);

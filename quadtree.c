@@ -207,7 +207,7 @@ void checkCollision(int circle_id, struct Cell* cell) {
     int id_1 = circle_id;
 
     for (int j = 0; j < cell->numCirclesInCell; j++) {
-        if (id_1 == j)
+        if (id_1 == cell->circle_ids[j])
             continue;
         int id_2 = cell->circle_ids[j];
 
@@ -222,23 +222,30 @@ void checkCollision(int circle_id, struct Cell* cell) {
 
         if (distSquared < sum_r * sum_r) {
             double dist = sqrt(distSquared);
-            double overlap = (sum_r - dist) / 2.0;
             dx /= dist;
             dy /= dist;
 
-            circles[id_1].posX -= overlap * dx;
-            circles[id_1].posY -= overlap * dy;
-            circles[id_2].posX += overlap * dx;
-            circles[id_2].posY += overlap * dy;
+            // Calculate relative velocity after collision
+            double relVelX = circles[id_2].velX - circles[id_1].velX;
+            double relVelY = circles[id_2].velY - circles[id_1].velY;
 
-            double dvx = circles[id_2].velX - circles[id_1].velX;
-            double dvy = circles[id_2].velY - circles[id_1].velY;
-            double dot = dvx * dx + dvy * dy;
+            // Calculate impulse (change in velocity)
+            double impulseX = dx * relVelX + dy * relVelY;
+            double impulseY = dy * relVelX - dx * relVelY;
 
-            circles[id_1].velX += dot * dx;
-            circles[id_1].velY += dot * dy;
-            circles[id_2].velX -= dot * dx;
-            circles[id_2].velY -= dot * dy;
+            // Apply impulse to velocities
+            circles[id_1].velX += impulseX * dx - impulseY * dy;
+            circles[id_1].velY += impulseX * dy + impulseY * dx;
+            circles[id_2].velX -= impulseX * dx - impulseY * dy;
+            circles[id_2].velY -= impulseX * dy + impulseY * dx;
+
+            // Collision resolution
+            double overlap = sum_r - dist;
+            double separation = overlap / 2.0;
+            circles[id_1].posX -= separation * dx;
+            circles[id_1].posY -= separation * dy;
+            circles[id_2].posX += separation * dx;
+            circles[id_2].posY += separation * dy;
 
             circles[id_1].velX *= friction;
             circles[id_1].velY *= friction;
