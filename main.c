@@ -119,6 +119,10 @@ int main(int argc, char** argv) {
         treePosY = curProcess->posY;
         treeWidth = curProcess->width;
         treeHeight = curProcess->height;
+
+        MPI_Recv(&numCircles, 1, MPI_INT, 0, tag_numCircles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        circles = (struct Circle*) realloc(circles, numCircles * sizeof(struct Circle)); // FU*K
+        MPI_Recv(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
 
     if (rank == 0) {
@@ -127,6 +131,19 @@ int main(int argc, char** argv) {
 
     while (true) {
         update();
+
+        frames++;
+        clock_t end = clock();
+        double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+        MPI_Bcast(&time_spent, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (time_spent >= 10) {
+            if (rank == 0)
+                printf("%f FPS\n", frames / time_spent);
+            frames = 0;
+            begin = end;
+            MPI_Finalize();
+            exit(0);
+        }
     }
 
     MPI_Finalize();
@@ -135,16 +152,21 @@ int main(int argc, char** argv) {
 
 void update() {
     if (rank != 0) {
-        MPI_Recv(&numCircles, 1, MPI_INT, 0, tag_numCircles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        circles = (struct Circle*) realloc(circles, numCircles * sizeof(struct Circle)); // FU*K
-        MPI_Recv(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         rebuildTree();
         MPI_Send(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD);
         freeTree(rootCell);
+        MPI_Recv(&numCircles, 1, MPI_INT, 0, tag_numCircles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        circles = (struct Circle*) realloc(circles, numCircles * sizeof(struct Circle)); // FU*K
+        MPI_Recv(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     } else {
         rebuildTree();
-        processes[0].circles = circles;
         freeTree(rootCell);
+
+        processes[0].circles = circles;
+        for (int j = 0; j < processes[0].numCircles; j++) {
+            allCircles[processes[0].circle_ids[j]] = processes[0].circles[j];
+        }
+
         for (int i = 1; i < numProcesses; i++) {
             MPI_Recv(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             for (int j = 0; j < processes[i].numCircles; j++) {
@@ -152,24 +174,7 @@ void update() {
             }
         }
 
-        for (int j = 0; j < processes[0].numCircles; j++) {
-            allCircles[processes[0].circle_ids[j]] = processes[0].circles[j];
-        }
         distributeCircles();
-    }
-
-    if (rank == 0) {
-        frames++;
-        clock_t end = clock();
-        double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-        if (time_spent >= 10) {
-            printf("%d frames for 10 seconds\n", frames);
-            printf("%f FPS\n", frames / 10.0);
-            frames = 0;
-            begin = end;
-            //MPI_Finalize();
-            //exit(0);
-        }
     }
 }
 
@@ -210,10 +215,4 @@ void distributeCircles() {
             MPI_Send(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i, tag_circles, MPI_COMM_WORLD);
         }
     }
-}
-
-void closeWindow() {
-    MPI_Abort(MPI_COMM_WORLD, 0);
-    MPI_Finalize();
-    exit(0);
 }
