@@ -20,9 +20,6 @@ int frames = 0;
 clock_t begin;
 
 int rank, size;
-int* recvCounts;
-
-int numProcesses;
 
 pthread_t recvThread;
 pthread_mutex_t circlesMutex;
@@ -35,14 +32,18 @@ void initOpenGL(int* argc, char** argv);
 void distributeCircles();
 int sleep(long ms);
 
-struct Process {
-    int posX;
-    int posY;
-    int width;
-    int height;
-};
+void* receiveCircles(void* arg) {
+    while (1) {
+        struct Circle* circle = (struct Circle*) malloc(sizeof(struct Circle));
+        MPI_Recv(circle, sizeof(struct Circle), MPI_BYTE, MPI_ANY_SOURCE, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-struct Process* processes;
+        pthread_mutex_lock(&circlesMutex);
+        circles = (struct Circle*) realloc(circles, (numCircles + 1) * sizeof(struct Circle));
+        circles[numCircles++] = *circle;
+        pthread_mutex_unlock(&circlesMutex);
+    }
+    return NULL;
+}
 
 int main(int argc, char** argv) {
     MPI_Init(&argc, &argv);
@@ -56,11 +57,9 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // Initialize the circles mutex
     pthread_mutex_init(&circlesMutex, NULL);
 
     numProcesses = size;
-
     numCircles = 1000;
     circleSize = 10.0;
     maxSpeed = circleSize / 2.0;
@@ -70,7 +69,6 @@ int main(int argc, char** argv) {
     circle_max_y = SCREEN_HEIGHT;
 
     processes = (struct Process*) malloc(numProcesses * sizeof(struct Process));
-
     circles = (struct Circle *) malloc(sizeof(struct Circle) * numCircles);
 
     if (rank == 0) {
@@ -82,19 +80,19 @@ int main(int argc, char** argv) {
             circles[i].velY = random_double(-maxSpeed, maxSpeed);
         }
 
-        int numColumns = (int)ceil(sqrt(numProcesses));
-        int numRows = (int)ceil((float)numProcesses / numColumns);
+        int numCols = (int)ceil(sqrt(numProcesses));
+        int numRows = (int)ceil((float)numProcesses / numCols);
 
-        int rectWidth = SCREEN_WIDTH / numColumns;
+        int rectWidth = SCREEN_WIDTH / numCols;
         int rectHeight = SCREEN_HEIGHT / numRows;
 
         int rectIndex = 0;
         for (int y = 0; y < numRows; y++) {
-            for (int x = 0; x < numColumns; x++) {
+            for (int x = 0; x < numCols; x++) {
                 if (rectIndex >= numProcesses) {
                     break;
                 }
-                if (y == numRows - 1 && x == 0 && rectIndex + numColumns >= numProcesses) {
+                if (y == numRows - 1 && x == 0 && rectIndex + numCols >= numProcesses) {
                     rectWidth = SCREEN_WIDTH / (numProcesses - rectIndex);
                 }
                 processes[rectIndex].posX = x * rectWidth;
@@ -108,17 +106,17 @@ int main(int argc, char** argv) {
 
     MPI_Bcast(&processes, numProcesses * sizeof(struct Process), MPI_BYTE, 0, MPI_COMM_WORLD);
 
-    pthread_create(&recvThread, NULL, receiveCircles, NULL);
-
     if (rank == 0) {
         distributeCircles();
     } else {
         MPI_Recv(&numCircles, 1, MPI_INT, 0, tag_numCircles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         MPI_Recv(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD,
                  MPI_STATUS_IGNORE);
+        struct Process* curProc = &processes[rank];
+        setupQuadtree(curProc->posX, curProc->posY, curProc->width, curProc->height);
     }
 
-    setupQuadtree(curProcess->posX, curProcess->posY, curProcess->width, curProcess->height);
+    pthread_create(&recvThread, NULL, receiveCircles, NULL);
 
     if (rank == 0) {
         glutInit((int *) &argc, argv);
@@ -134,40 +132,12 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-void* receiveCircles(void* arg) {
-    while (1) {
-        struct Circle* circle = (struct Circle*) malloc(sizeof(struct Circle));
-        MPI_Recv(circle, sizeof(struct Circle), MPI_BYTE, MPI_ANY_SOURCE, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-        pthread_mutex_lock(&circlesMutex);
-        circles = (struct Circle*) realloc(circles, (numCircles + 1) * sizeof(struct Circle));
-        circles[numCircles + 1] = *circle;
-        pthread_mutex_unlock(&circlesMutex);
-    }
-    return NULL;
-}
-
 void update() {
     pthread_mutex_lock(&circlesMutex);
-    for (int i = 0; i < numCircles; i++) {
-        updateCircle(&circles[i]);
-    }
+    updateCell(rootCell);
+    checkCollisions(rootCell);
     pthread_mutex_unlock(&circlesMutex);
 
-    rebuildTree();
-    for (int i = 0; i < numCircles; i++) {
-        struct Circle* circle = &circles[i];
-        if (isCircleOverlappingArea(circle, treePosX, treePosY, treeWidth, treeHeight)) {
-            continue;
-        }
-
-    }
-    MPI_Send(&numCells, 1, MPI_INT, 0, tag_numCells, MPI_COMM_WORLD);
-    MPI_Send(leaf_rects, numCells * sizeof(struct Rectangle), MPI_BYTE, 0, tag_cells, MPI_COMM_WORLD);
-    MPI_Send(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD);
-    freeTree(rootCell);
-
-    MPI_Gather(circles, numCirclesPerProcess, MPI_BYTE, allCircles, numCirclesPerProcess, MPI_BYTE, 0, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
 
     if (rank == 0) {
@@ -189,19 +159,15 @@ void update() {
 
 void distributeCircles() {
     if (rank == 0) {
-        for (int i = 0; i < numProcesses; i++) {
-            processes[i].numCircles = 0;
-        }
+        int* circleLengths = (int*) malloc(numProcesses * sizeof(int));
 
         for (int i = 0; i < numCircles; i++) {
-            int process_index = 0;
             for (int j = 0; j < numProcesses; j++) {
                 if (!isCircleOverlappingArea(&circles[i], processes[j].posX, processes[j].posY, processes[j].width, processes[j].height))
                     continue;
-                process_index = j;
+                circleLengths[j]++;
                 break;
             }
-            processes[process_index].numCircles++;
         }
 
         for (int i = 0; i < numProcesses; i++) {
