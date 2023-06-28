@@ -159,21 +159,33 @@ void update() {
                 circles[processes[i].circle_ids[j]] = processes[i].circles[j];
             }
         }
+        frames++;
+        clock_t end = clock();
+        double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+        MPI_Bcast(&time_spent, 1 , MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (time_spent >= 10) {
+            printf("%f FPS\n", frames / time_spent);
+            frames = 0;
+            begin = end;
+            MPI_Finalize();
+            exit(0);
+        }
         distributeCircles();
     }
 
-
-    frames++;
-    clock_t end = clock();
-    double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-    if (time_spent >= 10) {
-        printf("%f FPS\n", frames / time_spent);
-        frames = 0;
-        begin = end;
-        MPI_Finalize();
-        exit(0);
+    if(rank!=0) {
+        frames++;
+        clock_t end = clock();
+        double time_spent = (double) (end - begin) / CLOCKS_PER_SEC;
+        MPI_Bcast(&time_spent, 1 , MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (time_spent >= 10) {
+            printf("%f FPS\n", frames / time_spent);
+            frames = 0;
+            begin = end;
+            MPI_Finalize();
+            exit(0);
+        }
     }
-
 }
 
 void distributeCircles() {
