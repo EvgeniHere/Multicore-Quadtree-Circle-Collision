@@ -5,8 +5,8 @@
 #include <stdio.h>
 #include <time.h>
 
-#define SCREEN_WIDTH 1000000
-#define SCREEN_HEIGHT 1000000
+#define SCREEN_WIDTH 1000
+#define SCREEN_HEIGHT 1000
 
 int tag_circles = 1;
 int tag_numCircles = 2;
@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
 
     numProcesses = size - 1;
 
-    numCircles = 1000000;
+    numCircles = 100000;
     circleSize = 1.0;
     maxSpeed = 1.0;
     maxCirclesPerCell = 15;
