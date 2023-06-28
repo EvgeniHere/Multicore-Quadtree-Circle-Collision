@@ -25,6 +25,9 @@ int rank, size;
 
 int numProcesses;
 
+int numAllCircles;
+struct Circle* allCircles;
+
 int main(int argc, char** argv);
 void update();
 void display();
@@ -54,15 +57,14 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    if (size < 2) {
-        fprintf(stderr, "This program requires at least 2 processes.\n");
+    if (size < 1) {
+        fprintf(stderr, "This program requires at least 1 process.\n");
         MPI_Finalize();
         return 1;
     }
 
-    numProcesses = size - 1;
-
-    numCircles = 100000;
+    numProcesses = size;
+    numAllCircles = 100000;
     circleSize = 1.0;
     maxSpeed = 1.0;
     maxCirclesPerCell = 20;
@@ -70,15 +72,17 @@ int main(int argc, char** argv) {
     circle_max_X = SCREEN_WIDTH;
     circle_max_y = SCREEN_HEIGHT;
 
+    numCircles = numAllCircles/numProcesses;
     circles = (struct Circle *) malloc(sizeof(struct Circle) * numCircles);
+    allCircles = (struct Circle *) malloc(sizeof(struct Circle) * numAllCircles);
 
     if (rank == 0) {
         srand(90);
-        for (int i = 0; i < numCircles; i++) {
-            circles[i].posX = random_double(circleSize / 2.0, SCREEN_WIDTH - circleSize / 2.0);
-            circles[i].posY = random_double(circleSize / 2.0, SCREEN_HEIGHT - circleSize / 2.0);
-            circles[i].velX = random_double(-maxSpeed, maxSpeed);
-            circles[i].velY = random_double(-maxSpeed, maxSpeed);
+        for (int i = 0; i < numAllCircles; i++) {
+            allCircles[i].posX = random_double(circleSize / 2.0, SCREEN_WIDTH - circleSize / 2.0);
+            allCircles[i].posY = random_double(circleSize / 2.0, SCREEN_HEIGHT - circleSize / 2.0);
+            allCircles[i].velX = random_double(-maxSpeed, maxSpeed);
+            allCircles[i].velY = random_double(-maxSpeed, maxSpeed);
         }
 
         processes = (struct Process*) malloc(numProcesses * sizeof(struct Process));
@@ -107,13 +111,19 @@ int main(int argc, char** argv) {
         }
 
         for (int i = 0; i < numProcesses; i++) {
-            processes[i].circles = (struct Circle *) malloc(processes[i].numCircles * sizeof(struct Circle));
+            processes[i].circles = (struct Circle *) malloc(numCircles * sizeof(struct Circle));
             processes[i].rects = (struct Rectangle *) malloc(sizeof(struct Rectangle));
             processes[i].circle_ids = (int *) malloc(processes[i].numCircles * sizeof(int));
             processes[i].numCircles = 0;
             processes[i].numCells = 0;
-            MPI_Send(&processes[i], sizeof(struct Process), MPI_BYTE, i + 1, tag_process, MPI_COMM_WORLD);
+            if (i > 0)
+                MPI_Send(&processes[i], sizeof(struct Process), MPI_BYTE, i, tag_process, MPI_COMM_WORLD);
         }
+
+        treePosX = processes[0].posX;
+        treePosY = processes[0].posY;
+        treeWidth = processes[0].width;
+        treeHeight = processes[0].height;
 
         distributeCircles();
     } else {
@@ -150,14 +160,31 @@ void update() {
         MPI_Send(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD);
         freeTree(rootCell);
     } else {
-        for (int i = 0; i < numProcesses; i++) {
-            MPI_Recv(&processes[i].numCells, 1, MPI_INT, i + 1, tag_numCells, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        rebuildTree();
+        processes[0].circles = circles;
+        processes[0].numCells = numCells;
+        processes[0].rects = (struct Rectangle*) realloc(processes[0].rects, processes[0].numCells * sizeof(struct Rectangle));
+        for (int i = 0; i < numCells; i++) {
+            struct Rectangle* rect = (struct Rectangle*) malloc(sizeof(struct Rectangle));
+            rect->posX = leaf_rects[i].posX;
+            rect->posY = leaf_rects[i].posY;
+            rect->width = leaf_rects[i].width;
+            rect->height = leaf_rects[i].height;
+            processes[0].rects[i] = *rect;
+        }
+        freeTree(rootCell);
+        for (int i = 1; i < numProcesses; i++) {
+            MPI_Recv(&processes[i].numCells, 1, MPI_INT, i, tag_numCells, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             processes[i].rects = (struct Rectangle*) realloc(processes[i].rects, processes[i].numCells * sizeof(struct Rectangle));
-            MPI_Recv(processes[i].rects, processes[i].numCells * sizeof(struct Rectangle), MPI_BYTE, i + 1, tag_cells, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            MPI_Recv(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i + 1, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(processes[i].rects, processes[i].numCells * sizeof(struct Rectangle), MPI_BYTE, i, tag_cells, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             for (int j = 0; j < processes[i].numCircles; j++) {
-                circles[processes[i].circle_ids[j]] = processes[i].circles[j];
+                allCircles[processes[i].circle_ids[j]] = processes[i].circles[j];
             }
+        }
+
+        for (int j = 0; j < processes[0].numCircles; j++) {
+            allCircles[processes[0].circle_ids[j]] = processes[0].circles[j];
         }
         distributeCircles();
     }
@@ -185,9 +212,9 @@ void distributeCircles() {
             processes[i].numCircles = 0;
         }
 
-        for (int i = 0; i < numCircles; i++) {
+        for (int i = 0; i < numAllCircles; i++) {
             for (int j = 0; j < numProcesses; j++) {
-                if (!isCircleOverlappingArea(&circles[i], processes[j].posX, processes[j].posY, processes[j].width, processes[j].height))
+                if (!isCircleOverlappingArea(&allCircles[i], processes[j].posX, processes[j].posY, processes[j].width, processes[j].height))
                     continue;
                 processes[j].numCircles++;
             }
@@ -199,19 +226,21 @@ void distributeCircles() {
             processes[i].numCircles = 0;
         }
 
-        for (int i = 0; i < numCircles; i++) {
+        for (int i = 0; i < numAllCircles; i++) {
             for (int j = 0; j < numProcesses; j++) {
-                if (!isCircleOverlappingArea(&circles[i], processes[j].posX, processes[j].posY, processes[j].width, processes[j].height))
+                if (!isCircleOverlappingArea(&allCircles[i], processes[j].posX, processes[j].posY, processes[j].width, processes[j].height))
                     continue;
-                processes[j].circles[processes[j].numCircles] = circles[i];
+                processes[j].circles[processes[j].numCircles] = allCircles[i];
                 processes[j].circle_ids[processes[j].numCircles] = i;
                 processes[j].numCircles++;
             }
-
         }
-        for (int i = 0; i < numProcesses; i++) {
-            MPI_Send(&processes[i].numCircles, 1, MPI_INT, i + 1, tag_numCircles, MPI_COMM_WORLD);
-            MPI_Send(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i + 1, tag_circles, MPI_COMM_WORLD);
+
+        numCircles = processes[0].numCircles;
+        circles = processes[0].circles;
+        for (int i = 1; i < numProcesses; i++) {
+            MPI_Send(&processes[i].numCircles, 1, MPI_INT, i, tag_numCircles, MPI_COMM_WORLD);
+            MPI_Send(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i, tag_circles, MPI_COMM_WORLD);
         }
     }
 }
@@ -226,12 +255,8 @@ void display() {
     //glPointSize(circleSize);
 
     for (int i = 0; i < numProcesses; i++) {
-        glBegin(GL_LINE_LOOP);
-        glVertex2f(processes[i].posX + 1, processes[i].posY + 1);
-        glVertex2f(processes[i].posX + 1, processes[i].posY + 1 + processes[i].height - 2);
-        glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1 + processes[i].height - 2);
-        glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1);
-        glEnd();
+        glLineWidth(1);
+        glColor3f(255, 255, 255);
         for (int j = 0; j < processes[i].numCells; j++) {
             struct Rectangle* rect = &processes[i].rects[j];
             glBegin(GL_LINE_LOOP);
@@ -241,10 +266,19 @@ void display() {
             glVertex2f(rect->posX + 1 + rect->width - 2, rect->posY + 1);
             glEnd();
         }
+        glLineWidth(5);
+        glColor3f(255, 0, 0);
+        glBegin(GL_LINE_LOOP);
+        glVertex2f(processes[i].posX + 1, processes[i].posY + 1);
+        glVertex2f(processes[i].posX + 1, processes[i].posY + 1 + processes[i].height - 2);
+        glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1 + processes[i].height - 2);
+        glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1);
+        glEnd();
     }
 
-    for (int i = 0; i < numCircles; i++) {
-        drawCircle(circles[i].posX, circles[i].posY);
+    glColor3f(255, 255, 255);
+    for (int i = 0; i < numAllCircles; i++) {
+        drawCircle(allCircles[i].posX, allCircles[i].posY);
     }
 
     glutSwapBuffers();
@@ -273,8 +307,8 @@ void drawCircle(GLfloat centerX, GLfloat centerY) {
         glEnd();
     } else {
         glBegin(GL_POLYGON);
-        for (int i = 0; i < 32; i++) {
-            GLfloat angle = i * (2.0 * M_PI / 32);
+        for (int i = 0; i < 6; i++) {
+            GLfloat angle = i * (2.0 * M_PI / 6);
             GLfloat x = centerX + (circleSize/2) * cos(angle);
             GLfloat y = centerY + (circleSize/2) * sin(angle);
             glVertex2f(x, y);
@@ -282,7 +316,6 @@ void drawCircle(GLfloat centerX, GLfloat centerY) {
         glEnd();
     }
 }
-
 
 int sleep(long tms) {
     struct timespec ts;
