@@ -64,10 +64,10 @@ int main(int argc, char** argv) {
     }
 
     numProcesses = size;
-    numAllCircles = 100000;
-    circleSize = 1.0;
+    numAllCircles = 100;
+    circleSize = 50.0;
     maxSpeed = 1.0;
-    maxCirclesPerCell = 20;
+    maxCirclesPerCell = 3;
     minCellSize = 2 * circleSize + 2 * maxSpeed;
     circle_max_X = SCREEN_WIDTH;
     circle_max_y = SCREEN_HEIGHT;
@@ -119,23 +119,15 @@ int main(int argc, char** argv) {
             if (i > 0)
                 MPI_Send(&processes[i], sizeof(struct Process), MPI_BYTE, i, tag_process, MPI_COMM_WORLD);
         }
-
-        treePosX = processes[0].posX;
-        treePosY = processes[0].posY;
-        treeWidth = processes[0].width;
-        treeHeight = processes[0].height;
-
         distributeCircles();
+        setupQuadtree(processes[0].posX, processes[0].posY, processes[0].width, processes[0].height);
     } else {
         curProcess = (struct Process*) malloc(sizeof(struct Process));
         MPI_Recv(curProcess, sizeof(struct Process), MPI_BYTE, 0, tag_process, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        treePosX = curProcess->posX;
-        treePosY = curProcess->posY;
-        treeWidth = curProcess->width;
-        treeHeight = curProcess->height;
         MPI_Recv(&numCircles, 1, MPI_INT, 0, tag_numCircles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         circles = (struct Circle*) realloc(circles, numCircles * sizeof(struct Circle)); // FU*K
         MPI_Recv(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        setupQuadtree(curProcess->posX, curProcess->posY, curProcess->width, curProcess->height);
     }
 
     if (rank == 0) {
@@ -153,33 +145,30 @@ int main(int argc, char** argv) {
 }
 
 void update() {
+    updateTree();
     if (rank != 0) {
-        rebuildTree();
-        MPI_Send(&numCells, 1, MPI_INT, 0, tag_numCells, MPI_COMM_WORLD);
-        MPI_Send(leaf_rects, numCells * sizeof(struct Rectangle), MPI_BYTE, 0, tag_cells, MPI_COMM_WORLD);
+        //MPI_Send(&numCells, 1, MPI_INT, 0, tag_numCells, MPI_COMM_WORLD);
+        //MPI_Send(leaf_rects, numCells * sizeof(struct Rectangle), MPI_BYTE, 0, tag_cells, MPI_COMM_WORLD);
         MPI_Send(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD);
-        freeTree(rootCell);
         MPI_Recv(&numCircles, 1, MPI_INT, 0, tag_numCircles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         circles = (struct Circle*) realloc(circles, numCircles * sizeof(struct Circle)); // FU*K
         MPI_Recv(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     } else {
-        rebuildTree();
         processes[0].circles = circles;
-        processes[0].numCells = numCells;
-        processes[0].rects = (struct Rectangle*) realloc(processes[0].rects, processes[0].numCells * sizeof(struct Rectangle));
-        for (int i = 0; i < numCells; i++) {
+        //processes[0].numCells = numCells;
+        //processes[0].rects = (struct Rectangle*) realloc(processes[0].rects, processes[0].numCells * sizeof(struct Rectangle));
+        /*for (int i = 0; i < numCells; i++) {
             struct Rectangle* rect = (struct Rectangle*) malloc(sizeof(struct Rectangle));
             rect->posX = leaf_rects[i].posX;
             rect->posY = leaf_rects[i].posY;
             rect->width = leaf_rects[i].width;
             rect->height = leaf_rects[i].height;
             processes[0].rects[i] = *rect;
-        }
-        freeTree(rootCell);
+        }*/
         for (int i = 1; i < numProcesses; i++) {
-            MPI_Recv(&processes[i].numCells, 1, MPI_INT, i, tag_numCells, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            processes[i].rects = (struct Rectangle*) realloc(processes[i].rects, processes[i].numCells * sizeof(struct Rectangle));
-            MPI_Recv(processes[i].rects, processes[i].numCells * sizeof(struct Rectangle), MPI_BYTE, i, tag_cells, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            //MPI_Recv(&processes[i].numCells, 1, MPI_INT, i, tag_numCells, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            //processes[i].rects = (struct Rectangle*) realloc(processes[i].rects, processes[i].numCells * sizeof(struct Rectangle));
+            //MPI_Recv(processes[i].rects, processes[i].numCells * sizeof(struct Rectangle), MPI_BYTE, i, tag_cells, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             MPI_Recv(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             for (int j = 0; j < processes[i].numCircles; j++) {
                 allCircles[processes[i].circle_ids[j]] = processes[i].circles[j];
