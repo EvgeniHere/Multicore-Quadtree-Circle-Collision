@@ -2,14 +2,14 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdbool.h>
-#include <GL/glut.h>
-#include <GL/gl.h>
+//#include <GL/glut.h>
+//#include <GL/gl.h>
 #include <mpi.h>
 #include <time.h>
 
-#define SCREEN_WIDTH 100.0
-#define SCREEN_HEIGHT 100.0
-#define numCircles 10
+#define SCREEN_WIDTH 1000.0
+#define SCREEN_HEIGHT 1000.0
+#define numCircles 6000
 #define circleSize 5
 #define maxCirclesPerCell 3
 #define maxSpawnSpeed (circleSize / 4.0)
@@ -63,7 +63,7 @@ bool deleteCircle(struct Cell* cell, int circle_id);
 bool cellContainsCircle(struct Cell* cell, int circle_id);
 void collapseAllCollapsableCells(struct Cell* cell);
 void deleteTree(struct Cell* cell);
-
+/*
 void mouseClick(int button, int state, int x, int y) {
     if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
         gravityState = !gravityState;
@@ -75,7 +75,7 @@ void mouseClick(int button, int state, int x, int y) {
                 selectedCircle = i;
             }
         }*/
-
+    /*
     } else if (button == 3) {
         dt += 0.1f;
         if (dt > 5.0f)
@@ -124,7 +124,7 @@ void drawTree(struct Cell* cell, int depth) {
             glVertex2f(cell->posX + cell->cellWidth / 2, cell->posY + cell->cellHeight / 2);   // Top-right point
             glEnd();
         }*/
-
+/*
     } else {
         if (cell->isLeaf)
             return;
@@ -186,7 +186,7 @@ void display() {
 
     glutSwapBuffers();
 }
-
+*/
 void update() {
     int h = numCircles / world_size;
     deleteTree(rootCell);
@@ -209,10 +209,7 @@ void update() {
         printf("%f fps\n", frames/time_spent);
         frames = 0;
         begin = end;
-    }
-    if(rank == 0) {
-        glutPostRedisplay();
-        glutTimerFunc(30, update, 0);
+        exit(0);
     }
 
 }
@@ -272,7 +269,7 @@ int main(int argc, char** argv) {
     /*for (int i = 0; i < numCircles; i++) {
         addCircleToCell(i, rootCell);
     }*/
-    if(rank == 0) {
+    /*if(rank == 0) {
         glutInit(&argc, argv);
         glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
         glutInitWindowSize(SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -284,13 +281,13 @@ int main(int argc, char** argv) {
         glutMainLoop();
     }
     else {
-
+    */
     begin = clock();
         while(true) {
             update();
         }
-    }
-    MPI_Finalize();
+    //}
+    //MPI_Finalize();
     return 0;
 }
 
