@@ -41,7 +41,6 @@ struct Process {
     int posY;
     int width;
     int height;
-    int numCircles;
     int numCells;
     int* circle_ids;
     struct Circle* circles;
@@ -113,8 +112,7 @@ int main(int argc, char** argv) {
         for (int i = 0; i < numProcesses; i++) {
             processes[i].circles = (struct Circle *) malloc(numCircles * sizeof(struct Circle));
             processes[i].rects = (struct Rectangle *) malloc(sizeof(struct Rectangle));
-            processes[i].circle_ids = (int *) malloc(processes[i].numCircles * sizeof(int));
-            processes[i].numCircles = 0;
+            processes[i].circle_ids = (int *) malloc(numCircles * sizeof(int));
             processes[i].numCells = 0;
             if (i > 0)
                 MPI_Send(&processes[i], sizeof(struct Process), MPI_BYTE, i, tag_process, MPI_COMM_WORLD);
@@ -149,10 +147,7 @@ void update() {
     if (rank != 0) {
         //MPI_Send(&numCells, 1, MPI_INT, 0, tag_numCells, MPI_COMM_WORLD);
         //MPI_Send(leaf_rects, numCells * sizeof(struct Rectangle), MPI_BYTE, 0, tag_cells, MPI_COMM_WORLD);
-        MPI_Send(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD);
-        MPI_Recv(&numCircles, 1, MPI_INT, 0, tag_numCircles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        circles = (struct Circle*) realloc(circles, numCircles * sizeof(struct Circle)); // FU*K
-        MPI_Recv(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        circles = (struct Circle*) realloc(circles, numCircles * sizeof(struct Circle));
     } else {
         processes[0].circles = circles;
         //processes[0].numCells = numCells;
@@ -165,21 +160,19 @@ void update() {
             rect->height = leaf_rects[i].height;
             processes[0].rects[i] = *rect;
         }*/
-        for (int i = 1; i < numProcesses; i++) {
+        for (int i = 0; i < numProcesses; i++) {
             //MPI_Recv(&processes[i].numCells, 1, MPI_INT, i, tag_numCells, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             //processes[i].rects = (struct Rectangle*) realloc(processes[i].rects, processes[i].numCells * sizeof(struct Rectangle));
             //MPI_Recv(processes[i].rects, processes[i].numCells * sizeof(struct Rectangle), MPI_BYTE, i, tag_cells, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            MPI_Recv(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            for (int j = 0; j < processes[i].numCircles; j++) {
+            if (i > 0)
+                MPI_Recv(processes[i].circles, numCircles * sizeof(struct Circle), MPI_BYTE, i, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            for (int j = 0; j < numCircles; j++) {
                 allCircles[processes[i].circle_ids[j]] = processes[i].circles[j];
             }
         }
-
-        for (int j = 0; j < processes[0].numCircles; j++) {
-            allCircles[processes[0].circle_ids[j]] = processes[0].circles[j];
-        }
-        distributeCircles();
     }
+
+    MPI_Bcast(circles, numCircles, MPI_BYTE, 0, MPI_COMM_WORLD);
 
     if (rank == 0) {
         frames++;
@@ -195,45 +188,6 @@ void update() {
         }
         glutPostRedisplay();
         glutTimerFunc(0, update, 0);
-    }
-}
-
-void distributeCircles() {
-    if (rank == 0) {
-        for (int i = 0; i < numProcesses; i++) {
-            processes[i].numCircles = 0;
-        }
-
-        for (int i = 0; i < numAllCircles; i++) {
-            for (int j = 0; j < numProcesses; j++) {
-                if (!isCircleOverlappingArea(&allCircles[i], processes[j].posX, processes[j].posY, processes[j].width, processes[j].height))
-                    continue;
-                processes[j].numCircles++;
-            }
-        }
-
-        for (int i = 0; i < numProcesses; i++) {
-            processes[i].circles = (struct Circle *) realloc(processes[i].circles, processes[i].numCircles * sizeof(struct Circle));
-            processes[i].circle_ids = (int *) realloc(processes[i].circle_ids, processes[i].numCircles * sizeof(int));
-            processes[i].numCircles = 0;
-        }
-
-        for (int i = 0; i < numAllCircles; i++) {
-            for (int j = 0; j < numProcesses; j++) {
-                if (!isCircleOverlappingArea(&allCircles[i], processes[j].posX, processes[j].posY, processes[j].width, processes[j].height))
-                    continue;
-                processes[j].circles[processes[j].numCircles] = allCircles[i];
-                processes[j].circle_ids[processes[j].numCircles] = i;
-                processes[j].numCircles++;
-            }
-        }
-
-        numCircles = processes[0].numCircles;
-        circles = processes[0].circles;
-        for (int i = 1; i < numProcesses; i++) {
-            MPI_Send(&processes[i].numCircles, 1, MPI_INT, i, tag_numCircles, MPI_COMM_WORLD);
-            MPI_Send(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i, tag_circles, MPI_COMM_WORLD);
-        }
     }
 }
 
