@@ -68,7 +68,9 @@ void setupQuadtree(double rootCellX, double rootCellY, double rootCellWidth, dou
     rootCell->subcells = NULL;
 
     for (int i = 0; i < numCircles; i++) {
-        addCircleToCell(i, rootCell);
+        circle_inside[i] = isCircleOverlappingCellArea(i, rootCell);
+        if (circle_inside[i])
+            addCircleToCell(i, rootCell);
     }
     updateCell(rootCell);
 }
@@ -99,7 +101,7 @@ void updateTree() {
     updateCell(rootCell);
     checkCollisions(rootCell);
     for (int i = 0; i < numCircles; i++) {
-        if (circle_inside[i])
+        if (isCircleOverlappingCellArea(i, rootCell))
             move(&circles[i]);
     }
 }
@@ -145,8 +147,10 @@ void addCircleToCell(int circle_id, struct Cell* cell) {
 }
 
 void addCircleToParentCell(int circle_id, struct Cell* cell) {
-    if (cell == rootCell)
+    if (cell == rootCell) {
+        circle_inside[circle_id] = false;
         return;
+    }
 
     struct Cell* parentCell = cell->parentCell;
 
