@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
 
     numProcesses = size;
     numCircles = 100000;
-    circleSize = 10.0;
+    circleSize = 1.0;
     maxSpeed = 1.0;
     maxCirclesPerCell = 15;
     minCellSize = 2 * circleSize + 2 * maxSpeed;
