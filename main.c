@@ -1,12 +1,8 @@
 #include <stdlib.h>
-#include <GL/glut.h>
-#include <GL/gl.h>
 #include <mpi.h>
 #include "window.c"
 #include "quadtree.c"
-#include <GL/freeglut.h>
 #include <stdio.h>
-#include <errno.h>
 #include <time.h>
 
 #define SCREEN_WIDTH 1000
@@ -28,9 +24,6 @@ int numProcesses;
 
 int main(int argc, char** argv);
 void update();
-void display();
-void drawCircle(GLfloat centerX, GLfloat centerY);
-void initOpenGL(int* argc, char** argv);
 void distributeCircles();
 
 struct Process {
@@ -60,7 +53,7 @@ int main(int argc, char** argv) {
     }
 
     numProcesses = size;
-    numCircles = 1000;
+    numCircles = 100000;
     circleSize = 10.0;
     maxSpeed = 1.0;
     maxCirclesPerCell = 15;
@@ -127,14 +120,11 @@ int main(int argc, char** argv) {
     MPI_Bcast(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, MPI_COMM_WORLD);
     setupQuadtree(curProcess->posX, curProcess->posY, curProcess->width, curProcess->height);
 
-    if (rank == 0) {
-        glutInit((int *) &argc, argv);
+    if (rank == 0)
         begin = clock();
-        initOpenGL(&argc, argv);
-    } else {
-        while (true) {
-            update();
-        }
+
+    while (true) {
+        update();
     }
 
     MPI_Finalize();
@@ -180,79 +170,5 @@ void update() {
             //MPI_Finalize();
             //exit(0);
         }
-        glutPostRedisplay();
-        glutTimerFunc(0, update, 0);
-    }
-}
-
-void display() {
-    glClear(GL_COLOR_BUFFER_BIT);
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    gluOrtho2D(0, SCREEN_WIDTH, 0, SCREEN_HEIGHT);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    //glPointSize(circleSize);
-
-    /*for (int i = 0; i < numProcesses; i++) {
-        glLineWidth(1);
-        glColor3f(255, 255, 255);
-        for (int j = 0; j < processes[i].numCells; j++) {
-            struct Rectangle* rect = &processes[i].rects[j];
-            glBegin(GL_LINE_LOOP);
-            glVertex2f(rect->posX + 1, rect->posY + 1);
-            glVertex2f(rect->posX + 1, rect->posY + 1 + rect->height - 2);
-            glVertex2f(rect->posX + 1 + rect->width - 2, rect->posY + 1 + rect->height - 2);
-            glVertex2f(rect->posX + 1 + rect->width - 2, rect->posY + 1);
-            glEnd();
-        }
-        glLineWidth(5);
-        glColor3f(255, 0, 0);
-        glBegin(GL_LINE_LOOP);
-        glVertex2f(processes[i].posX + 1, processes[i].posY + 1);
-        glVertex2f(processes[i].posX + 1, processes[i].posY + 1 + processes[i].height - 2);
-        glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1 + processes[i].height - 2);
-        glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1);
-        glEnd();
-    }*/
-
-    glColor3f(255, 255, 255);
-    for (int i = 0; i < numCircles; i++) {
-        drawCircle(circles[i].posX, circles[i].posY);
-    }
-
-    glutSwapBuffers();
-}
-
-void closeWindow() {
-    MPI_Abort(MPI_COMM_WORLD, 0);
-    MPI_Finalize();
-    exit(0);
-}
-
-void initOpenGL(int* argc, char** argv) {
-    glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
-    glutInitWindowSize(SCREEN_WIDTH, SCREEN_HEIGHT);
-    glutCreateWindow("HPC Bouncing Circles");
-    glutCloseFunc(closeWindow);
-    glutDisplayFunc(display);
-    glutTimerFunc(0, update, 0);
-    glutMainLoop();
-}
-
-void drawCircle(GLfloat centerX, GLfloat centerY) {
-    if (circleSize <= 2.0f) {
-        glBegin(GL_POINTS);
-        glVertex2i(centerX, centerY);
-        glEnd();
-    } else {
-        glBegin(GL_POLYGON);
-        for (int i = 0; i < 6; i++) {
-            GLfloat angle = i * (2.0 * M_PI / 6);
-            GLfloat x = centerX + (circleSize/2) * cos(angle);
-            GLfloat y = centerY + (circleSize/2) * sin(angle);
-            glVertex2f(x, y);
-        }
-        glEnd();
     }
 }
