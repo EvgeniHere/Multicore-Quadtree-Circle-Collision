@@ -81,10 +81,10 @@ void updateCell(struct Cell* cell) {
             int circle_id = cell->circle_ids[i];
             if (isCircleFullInsideCellArea(circle_id, cell))
                 continue;
-            /*if (!isCircleOverlappingCellArea(circle_id, cell)) {
+            if (!isCircleOverlappingCellArea(circle_id, cell)) {
                 deleteCircle(rootCell, circle_id);
                 i--;
-            }*/
+            }
             addCircleToParentCell(circle_id, cell);
         }
         return;
@@ -99,8 +99,6 @@ void updateCell(struct Cell* cell) {
 
 void updateTree() {
     for (int i = 0; i < numCircles; i++) {
-        //if (circle_inside[i])
-        //deleteCircle(rootCell, i);
         if (isCircleOverlappingCellArea(i, rootCell)) {
             if (!circle_inside[i]) {
                 addCircleToCell(i, rootCell);
@@ -108,7 +106,7 @@ void updateTree() {
             }
             move(&circles[i]);
         }
-        deleteCircle(rootCell, i);
+        //deleteCircle(rootCell, i);
     }
     checkCollisions(rootCell);
     updateCell(rootCell);
