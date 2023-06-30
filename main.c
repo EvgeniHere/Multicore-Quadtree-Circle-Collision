@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
     numCircles = 100000;
     circleSize = 1.0;
     maxSpeed = 1.0;
-    maxCirclesPerCell = 100;
+    maxCirclesPerCell = 50;
     minCellSize = 2 * circleSize;
     circle_max_X = SCREEN_WIDTH;
     circle_max_y = SCREEN_HEIGHT;
@@ -125,6 +125,19 @@ int main(int argc, char** argv) {
 
     while (true) {
         update();
+
+        frames++;
+        clock_t end = clock();
+        double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+        MPI_Bcast(&time_spent, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (time_spent >= 10) {
+            if (rank == 0)
+                printf("%f FPS\n", frames / time_spent);
+            frames = 0;
+            begin = end;
+            MPI_Finalize();
+            exit(0);
+        }
     }
 
     MPI_Finalize();
@@ -156,19 +169,5 @@ void update() {
             }
         }
         circle_inside = processes[0].circle_inside;
-    }
-
-    if (rank == 0) {
-        frames++;
-        clock_t end = clock();
-        double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-        if (time_spent >= 10) {
-            printf("%d frames for 10 seconds\n", frames);
-            printf("%f FPS\n", frames / 10.0);
-            frames = 0;
-            begin = end;
-            //MPI_Finalize();
-            //exit(0);
-        }
     }
 }
