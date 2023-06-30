@@ -101,8 +101,14 @@ void updateTree() {
     updateCell(rootCell);
     checkCollisions(rootCell);
     for (int i = 0; i < numCircles; i++) {
-        if (isCircleOverlappingCellArea(i, rootCell))
+        if (circle_inside[i])
+            deleteCircle(rootCell, i);
+        if (isCircleOverlappingCellArea(i, rootCell)) {
+            if (!circle_inside[i])
+                addCircleToCell(i, rootCell);
             move(&circles[i]);
+            circle_inside[i] = true;
+        }
     }
 }
 
@@ -342,10 +348,10 @@ void checkCollisions(struct Cell* cell) {
         }
     }
 
-    for (int i = 0; i < cell->numCirclesInCell; i++) {
+    /*for (int i = 0; i < cell->numCirclesInCell; i++) {
         int id = cell->circle_ids[i];
         checkPosition(&circles[id]);
-    }
+    }*/
 }
 
 bool cellContainsCircle(struct Cell* cell, int circle_id) {

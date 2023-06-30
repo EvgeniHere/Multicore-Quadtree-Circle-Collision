@@ -149,12 +149,6 @@ void update() {
         //MPI_Send(&numCells, 1, MPI_INT, 0, tag_numCells, MPI_COMM_WORLD);
         //MPI_Send(leaf_rects, numCells * sizeof(struct Rectangle), MPI_BYTE, 0, tag_cells, MPI_COMM_WORLD);
         MPI_Send(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD);
-        for (int i = 0; i < numCircles; i++) {
-            bool circleOverlapping = isCircleOverlappingCellArea(i, rootCell);
-            if (circleOverlapping && !circle_inside[i])
-                addCircleToCell(i, rootCell);
-            circle_inside[i] = circleOverlapping;
-        }
     } else {
         //processes[0].numCells = numCells;
         //processes[0].rects = (struct Rectangle*) realloc(processes[0].rects, processes[0].numCells * sizeof(struct Rectangle));
