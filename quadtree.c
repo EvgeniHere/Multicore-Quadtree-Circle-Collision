@@ -99,8 +99,6 @@ void updateCell(struct Cell* cell) {
 
 void updateTree() {
     for (int i = 0; i < numCircles; i++) {
-        //if (circle_inside[i])
-        //deleteCircle(rootCell, i);
         if (isCircleOverlappingCellArea(i, rootCell)) {
             if (!circle_inside[i]) {
                 addCircleToCell(i, rootCell);
