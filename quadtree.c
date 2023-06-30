@@ -98,18 +98,20 @@ void updateCell(struct Cell* cell) {
 }
 
 void updateTree() {
-    updateCell(rootCell);
-    checkCollisions(rootCell);
     for (int i = 0; i < numCircles; i++) {
-        if (circle_inside[i])
-            deleteCircle(rootCell, i);
+        //if (circle_inside[i])
+        //deleteCircle(rootCell, i);
         if (isCircleOverlappingCellArea(i, rootCell)) {
-            if (!circle_inside[i])
+            if (!circle_inside[i]) {
                 addCircleToCell(i, rootCell);
+                circle_inside[i] = true;
+            }
             move(&circles[i]);
-            circle_inside[i] = true;
         }
+        deleteCircle(rootCell, i);
     }
+    checkCollisions(rootCell);
+    updateCell(rootCell);
 }
 
 void addCircleToCell(int circle_id, struct Cell* cell) {
@@ -269,28 +271,27 @@ void collapse(struct Cell* cell, struct Cell* originCell) {
 
 bool deleteCircle(struct Cell* cell, int circle_id) {
     if (cell->isLeaf) {
-        if (!isCircleOverlappingCellArea(circle_id, cell)) {
-            for (int i = 0; i < cell->numCirclesInCell; i++) {
-                if (cell->circle_ids[i] != circle_id)
-                    continue;
-                for (int j = i; j < cell->numCirclesInCell - 1; j++) {
-                    cell->circle_ids[j] = cell->circle_ids[j + 1];
-                }
-                cell->numCirclesInCell--;
-                return true;
+        if (isCircleOverlappingCellArea(circle_id, cell))
+            return false;
+        for (int i = 0; i < cell->numCirclesInCell; i++) {
+            if (cell->circle_ids[i] != circle_id)
+                continue;
+            for (int j = i; j < cell->numCirclesInCell - 1; j++) {
+                cell->circle_ids[j] = cell->circle_ids[j + 1];
             }
+            cell->numCirclesInCell--;
+            return true;
         }
     } else {
-        if (isCircleCloseToCellArea(circle_id, cell)) {
-            bool deleted = false;
-            for (int i = 0; i < 4; i++) {
+        bool deleted = false;
+        for (int i = 0; i < 4; i++) {
+            if (isCircleCloseToCellArea(circle_id, &cell->subcells[i]))
                 if (deleteCircle(&cell->subcells[i], circle_id))
                     deleted = true;
-            }
-            if (deleted && !isCircleOverlappingCellArea(circle_id, cell)) {
-                cell->numCirclesInCell--;
-                return true;
-            }
+        }
+        if (deleted && !isCircleOverlappingCellArea(circle_id, cell)) {
+            cell->numCirclesInCell--;
+            return true;
         }
     }
     return false;
@@ -348,10 +349,10 @@ void checkCollisions(struct Cell* cell) {
         }
     }
 
-    /*for (int i = 0; i < cell->numCirclesInCell; i++) {
+    for (int i = 0; i < cell->numCirclesInCell; i++) {
         int id = cell->circle_ids[i];
         checkPosition(&circles[id]);
-    }*/
+    }
 }
 
 bool cellContainsCircle(struct Cell* cell, int circle_id) {

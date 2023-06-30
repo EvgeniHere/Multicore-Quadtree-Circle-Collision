@@ -179,9 +179,10 @@ void update() {
             begin = end;
             //MPI_Finalize();
             //exit(0);
+            printTree(rootCell, 0);
         }
         glutPostRedisplay();
-        glutTimerFunc(0, update, 0);
+        glutTimerFunc(10, update, 0);
     }
 }
 
