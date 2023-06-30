@@ -99,7 +99,8 @@ void updateTree() {
     updateCell(rootCell);
     checkCollisions(rootCell);
     for (int i = 0; i < numCircles; i++) {
-        move(&circles[i]);
+        if (circle_inside[i])
+            move(&circles[i]);
     }
 }
 
