@@ -243,10 +243,6 @@ void collapse(struct Cell* cell, struct Cell* originCell) {
             if (!isCircleOverlappingCellArea(circle_id, originCell) || cellContainsCircle(originCell, circle_id))
                 continue;
             if (originCell->numCirclesInCell > maxCirclesPerCell) {
-                printTree(originCell, 0);
-                for(int j = 0; j < 4; j++) {
-                    printTree(&originCell->subcells[j], 0);
-                }
                 printf("WTF!\n");
                 return;
             } else {

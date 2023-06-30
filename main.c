@@ -60,8 +60,8 @@ int main(int argc, char** argv) {
     }
 
     numProcesses = size;
-    numCircles = 1000;
-    circleSize = 10.0;
+    numCircles = 100000;
+    circleSize = 1.0;
     maxSpeed = 1.0;
     maxCirclesPerCell = 15;
     minCellSize = 2 * circleSize + 2 * maxSpeed;
@@ -179,10 +179,10 @@ void update() {
             begin = end;
             //MPI_Finalize();
             //exit(0);
-            printTree(rootCell, 0);
+            //printTree(rootCell, 0);
         }
         glutPostRedisplay();
-        glutTimerFunc(10, update, 0);
+        glutTimerFunc(0, update, 0);
     }
 }
 
