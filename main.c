@@ -15,6 +15,7 @@
 
 int frames = 0;
 clock_t begin;
+pthread_t recvThread;
 
 int main(int argc, char** argv);
 void update();
@@ -42,13 +43,11 @@ int main(int argc, char** argv) {
     }
 
     //pthread_t workThread;
-    pthread_t recvThread;
     //pthread_create(&workThread, NULL, workFunction, NULL);
-    pthread_create(&recvThread, NULL, receiveCircle, NULL);
 
     numProcesses = size;
-    numCircles = 100000;
-    circleSize = 1.0;
+    numCircles = 1000;
+    circleSize = 10.0;
     maxSpeed = 1.0;
     maxCirclesPerCell = 100;
     minCellSize = 2 * circleSize;
@@ -90,11 +89,6 @@ int main(int argc, char** argv) {
                 rectIndex++;
             }
         }
-
-        for (int i = 0; i < numProcesses; i++) {
-            processes[i].circles = (struct Circle *) malloc(numCircles * sizeof(struct Circle));
-            processes[i].numCircles = 0;
-        }
         distributeCircles();
     } else {
         MPI_Recv(&numCircles, 1, MPI_INT, 0, tag_numCircles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -103,6 +97,7 @@ int main(int argc, char** argv) {
     MPI_Bcast(processes, numProcesses * sizeof(struct Process), MPI_BYTE, 0, MPI_COMM_WORLD);
     setupQuadtree(processes[rank].posX, processes[rank].posY, processes[rank].width, processes[rank].height);
 
+    pthread_create(&recvThread, NULL, receiveCircle, NULL);
 
     if (rank == 0) {
         glutInit((int *) &argc, argv);
@@ -123,17 +118,18 @@ int main(int argc, char** argv) {
 
 void distributeCircles() {
     for (int i = 0; i < numProcesses; i++) {
+        processes[i].numCircles = 0;
         for (int j = 0; j < numCircles; j++) {
             if (!isCircleOverlappingArea(&circles[j], processes[i].posX, processes[i].posY, processes[i].width, processes[i].height))
                 continue;
             processes[i].numCircles++;
         }
-        processes[i].circles = realloc(processes[i].circles, processes[i].numCircles * sizeof(struct Circle));
+        processes[i].circles = malloc(processes[i].numCircles * sizeof(struct Circle));
         processes[i].numCircles = 0;
         for (int j = 0; j < numCircles; j++) {
             if (!isCircleOverlappingArea(&circles[j], processes[i].posX, processes[i].posY, processes[i].width, processes[i].height))
                 continue;
-            processes[i].circles[processes[i].numCircles++] = circles[i];
+            processes[i].circles[processes[i].numCircles++] = circles[j];
         }
         if (i > 0) {
             MPI_Send(&processes[i].numCircles, 1, MPI_INT, i, tag_numCircles, MPI_COMM_WORLD);
@@ -145,39 +141,48 @@ void distributeCircles() {
 }
 
 void update() {
-    printf("%d F\n", rank);
+    pthread_mutex_lock(&arrayMutex);
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    //printf("UPDATING RANK %d...\n", rank);
     updateTree();
-    printf("%d G\n", rank);
+    //printf("UPDATED RANK %d.\n", rank);
 
     // Nur 16 mal die Sekunde?
     updateCirclesFromTree();
     // -----------------------
+    pthread_mutex_unlock(&arrayMutex);
 
     if (rank != 0) {
         MPI_Send(&numCircles, 1, MPI_INT, 0, tag_numCircles, MPI_COMM_WORLD);
         MPI_Send(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD);
+        //printf("SENT CIRCLES FROM RANK %d.\n", rank);
     } else {
+        processes[0].numCircles = numCircles;
         processes[0].circles = circles;
         for (int i = 1; i < numProcesses; i++) {
-            MPI_Recv(&processes[i].numCircles, 1, MPI_INT, 0, tag_numCircles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(&processes[i].numCircles, 1, MPI_INT, i, tag_numCircles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             processes[i].circles = (struct Circle*) realloc(processes[i].circles, processes[i].numCircles * sizeof(struct Circle));
             MPI_Recv(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            //printf("RECV CIRCLES FROM RANK %d.\n", i);
         }
     }
 
+    //printf("%d\n", frames);
+    frames++;
+    clock_t end = clock();
+    double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+    if (time_spent >= 10) {
+        printf("%d frames for 10 seconds\n", frames);
+        printf("%f FPS\n", frames / 10.0);
+        frames = 0;
+        begin = end;
+        //MPI_Finalize();
+        //exit(0);
+        printTree(rootCell, 0);
+    }
+
     if (rank == 0) {
-        frames++;
-        clock_t end = clock();
-        double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-        if (time_spent >= 10) {
-            printf("%d frames for 10 seconds\n", frames);
-            printf("%f FPS\n", frames / 10.0);
-            frames = 0;
-            begin = end;
-            //MPI_Finalize();
-            //exit(0);
-            //printTree(rootCell, 0);
-        }
         glutPostRedisplay();
         glutTimerFunc(0, update, 0);
     }
@@ -216,6 +221,7 @@ void display() {
 
     glColor3f(255, 255, 255);
     for (int i = 0; i < numProcesses; i++) {
+        //printf("%d\n", processes[i].numCircles);
         for (int j = 0; j < processes[i].numCircles; j++) {
             drawCircle(processes[i].circles[j].posX, processes[i].circles[j].posY);
         }

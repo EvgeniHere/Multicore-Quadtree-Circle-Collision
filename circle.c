@@ -19,6 +19,7 @@ int circle_max_X = 0;
 int circle_max_y = 0;
 
 void move(struct Circle* circle);
+struct Circle* circleCopy(struct Circle* circle);
 
 void move(struct Circle* circle) {
     if (gravityState)
@@ -68,4 +69,14 @@ void checkPosition(struct Circle* circle) {
     } else if (circle->posY - circleSize/2.0 < 0.0) {
         circle->posY = circleSize/2.0;
     }
+}
+
+struct Circle* circleCopy(struct Circle* circle) {
+    struct Circle* cpCircle = (struct Circle*) malloc(sizeof(struct Circle));
+    cpCircle->id = circle->id;
+    cpCircle->posX = circle->posX;
+    cpCircle->posY = circle->posY;
+    cpCircle->velX = circle->velX;
+    cpCircle->velY = circle->velY;
+    return cpCircle;
 }
