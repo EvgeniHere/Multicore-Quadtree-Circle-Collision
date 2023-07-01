@@ -141,8 +141,8 @@ void distributeCircles() {
 }
 
 void update() {
-    pthread_mutex_lock(&arrayMutex);
     MPI_Barrier(MPI_COMM_WORLD);
+    pthread_mutex_lock(&arrayMutex);
 
     //printf("UPDATING RANK %d...\n", rank);
     updateTree();
