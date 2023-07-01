@@ -60,7 +60,12 @@ int main(int argc, char** argv) {
     minCellSize = 4 * circleSize;
     circle_max_X = SCREEN_WIDTH;
     circle_max_y = SCREEN_HEIGHT;
-
+    
+    if (rank == 0) {
+        printf("numCircles: %d\n", numCircles);
+        printf("maxCirclesPerCell: %d\n", maxCirclesPerCell);
+        printf("minCellSize: %f\n", minCellSize);
+    }
     circles = (struct Circle *) malloc(sizeof(struct Circle) * numCircles);
     circle_inside = (bool *) malloc(sizeof(bool) * numCircles);
     curProcess = (struct Process*) malloc(sizeof(struct Process));
