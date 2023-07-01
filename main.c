@@ -45,6 +45,11 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
+    if (argc < 3) {
+        printf("This program requires 2 arguments\n");
+        return 1;
+    }
+
     if (size < 1) {
         fprintf(stderr, "This program requires at least 1 process.\n");
         MPI_Finalize();
@@ -52,10 +57,10 @@ int main(int argc, char** argv) {
     }
 
     numProcesses = size;
-    numAllCircles = 100000;
+    numAllCircles = atoi(argv[1]);
     circleSize = 1.0;
     maxSpeed = 1.0;
-    maxCirclesPerCell = 20;
+    maxCirclesPerCell = atoi(argv[2]);
     minCellSize = 2 * circleSize + 4 * maxSpeed;
     circle_max_X = SCREEN_WIDTH;
     circle_max_y = SCREEN_HEIGHT;
