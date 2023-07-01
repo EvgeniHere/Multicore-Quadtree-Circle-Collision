@@ -1,6 +1,7 @@
 #include <stdbool.h>
 
 struct Circle {
+    int id;
     double posX;
     double posY;
     double velX;
