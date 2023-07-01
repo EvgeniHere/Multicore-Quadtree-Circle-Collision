@@ -52,11 +52,16 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    if (argc < 3) {
+        printf("Please provide 3 numbers as arguments.\n");
+        return 1;
+    }
+
     numProcesses = size;
-    numCircles = 100000;
+    numCircles = atoi(argv[1]);
     circleSize = 1.0;
     maxSpeed = 1.0;
-    maxCirclesPerCell = 80;
+    maxCirclesPerCell = atoi(argv[2]);
     minCellSize = 4 * circleSize;
     circle_max_X = SCREEN_WIDTH;
     circle_max_y = SCREEN_HEIGHT;
