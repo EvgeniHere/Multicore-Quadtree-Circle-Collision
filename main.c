@@ -10,14 +10,15 @@
 
 #define SCREEN_WIDTH 300.0
 #define SCREEN_HEIGHT 300.0
-#define numCircles 10
+#define numCircles 30
 #define circleSize 10
-#define maxCirclesPerCell 2
-#define maxSpawnSpeed 5.0
-#define maxSpeed 5.0
-#define gravity 0.01
+#define maxCirclesPerCell 3
+#define maxSpawnSpeed 3.0
+#define maxSpeed 3.0
 
-bool gravityState = false; //Mouseclick ins Fenster
+
+double gravity = 0.1;
+bool gravityState = true; //Mouseclick ins Fenster
 bool drawCells = true; //Zeichnet tiefste Zellen des Baums
 double dt = 1.0;
 int selectedCircle = 5742;
@@ -66,7 +67,7 @@ int sleep(long tms);
 
 void mouseClick(int button, int state, int x, int y) {
     if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-        gravityState = !gravityState;
+        gravity *= -1;
         printTree(rootCell, 0);
         /*printf("%d; %d\n", x, y);
         for (int i = 0; i < numCircles; i++) {
@@ -214,7 +215,7 @@ void update(int counter) {
     }
 
     glutPostRedisplay();
-    glutTimerFunc(1000, update, counter + 1);
+    glutTimerFunc(10, update, counter + 1);
 }
 
 int main(int argc, char** argv) {
