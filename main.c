@@ -195,8 +195,8 @@ void display() {
     glLoadIdentity();
     //glPointSize(circleSize);
 
-    /*for (int i = 0; i < numProcesses; i++) {
-        glLineWidth(1);
+    for (int i = 0; i < numProcesses; i++) {
+        /*glLineWidth(1);
         glColor3f(255, 255, 255);
         for (int j = 0; j < processes[i].numCells; j++) {
             struct Rectangle* rect = &processes[i].rects[j];
@@ -206,7 +206,7 @@ void display() {
             glVertex2f(rect->posX + 1 + rect->width - 2, rect->posY + 1 + rect->height - 2);
             glVertex2f(rect->posX + 1 + rect->width - 2, rect->posY + 1);
             glEnd();
-        }
+        }*/
         glLineWidth(5);
         glColor3f(255, 0, 0);
         glBegin(GL_LINE_LOOP);
@@ -215,7 +215,7 @@ void display() {
         glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1 + processes[i].height - 2);
         glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1);
         glEnd();
-    }*/
+    }
 
     glColor3f(255, 255, 255);
     for (int i = 0; i < numCircles; i++) {
