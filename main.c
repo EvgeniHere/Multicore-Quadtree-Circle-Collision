@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
     numCircles = 100000;
     circleSize = 1.0;
     maxSpeed = 1.0;
-    maxCirclesPerCell = 100;
+    maxCirclesPerCell = 30;
     minCellSize = 2 * circleSize;
     circle_max_X = SCREEN_WIDTH;
     circle_max_y = SCREEN_HEIGHT;
