@@ -9,8 +9,8 @@
 #include <errno.h>
 #include <time.h>
 
-#define SCREEN_WIDTH 1000
-#define SCREEN_HEIGHT 1000
+#define SCREEN_WIDTH 1920
+#define SCREEN_HEIGHT 1080
 
 int tag_circles = 1;
 int tag_numCircles = 2;
@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
 
     numProcesses = size;
     numAllCircles = 100000;
-    circleSize = 1.0;
+    circleSize = 2.0;
     maxSpeed = 1.0;
     maxCirclesPerCell = 20;
     minCellSize = 2 * circleSize + 2 * maxSpeed;
@@ -258,7 +258,7 @@ void display() {
     //glPointSize(circleSize);
 
     for (int i = 0; i < numProcesses; i++) {
-        glLineWidth(1);
+        /*glLineWidth(1);
         glColor3f(255, 255, 255);
         for (int j = 0; j < processes[i].numCells; j++) {
             struct Rectangle* rect = &processes[i].rects[j];
@@ -268,7 +268,7 @@ void display() {
             glVertex2f(rect->posX + 1 + rect->width - 2, rect->posY + 1 + rect->height - 2);
             glVertex2f(rect->posX + 1 + rect->width - 2, rect->posY + 1);
             glEnd();
-        }
+        }*/
         glLineWidth(5);
         glColor3f(255, 0, 0);
         glBegin(GL_LINE_LOOP);
