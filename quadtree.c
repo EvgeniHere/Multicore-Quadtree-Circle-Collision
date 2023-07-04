@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <pthread.h>
+#include <unistd.h>
 #include "circle.c"
 
 #define SCREEN_WIDTH 1000
@@ -141,8 +142,9 @@ void updateTree() {
 
 void addCircleToCell(struct Circle* circle, struct Cell* cell) {
     if (cell->isLeaf) {
-        if (cellContainsCircle(cell, circle))
+        if (cellContainsCircle(cell, circle)) {
             return;
+        }
 
         if (cell->numCirclesInCell >= maxCirclesPerCell) {
             if (cell->cellWidth > minCellSize && cell->cellHeight > minCellSize) {
@@ -204,8 +206,8 @@ void updateCell(struct Cell* cell) {
 }
 
 void sendToDifferentProcess(struct Circle* circle) {
-    if (!isCircleFullInsideArea(circle, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT))
-        return;
+    //if (!isCircleFullInsideArea(circle, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT))
+      //  return;
     for (int i = 0; i < numProcesses; i++) {
         if (i == rank)
             continue;

@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
     numCircles = 100000;
     circleSize = 1.0;
     maxSpeed = 1.0;
-    maxCirclesPerCell = 100;
+    maxCirclesPerCell = 50;
     minCellSize = 4 * circleSize;
     circle_max_X = SCREEN_WIDTH;
     circle_max_y = SCREEN_HEIGHT;
@@ -141,7 +141,6 @@ void update() {
     pthread_mutex_lock(&arrayMutex);
 
     updateTree();
-
     updateCirclesFromTree();
 
     pthread_mutex_unlock(&arrayMutex);
@@ -158,6 +157,7 @@ void update() {
             MPI_Recv(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
     }
+    MPI_Barrier(MPI_COMM_WORLD);
 
     frames++;
     clock_t end = clock();
@@ -171,8 +171,6 @@ void update() {
         //exit(0);
         //printTree(rootCell, 0);
     }
-
-    //MPI_Barrier(MPI_COMM_WORLD);
 
     if (rank == 0) {
         glutPostRedisplay();
@@ -188,10 +186,12 @@ void display() {
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     //glPointSize(circleSize);
+    glLineWidth(3);
+    glColor3f(255, 0, 0);
 
     for (int i = 0; i < numProcesses; i++) {
-        glLineWidth(1);
-        glColor3f(255, 255, 255);
+        //glLineWidth(1);
+        //glColor3f(255, 255, 255);
         /*for (int j = 0; j < processes[i].numCells; j++) {
             struct Rectangle* rect = &processes[i].rects[j];
             glBegin(GL_LINE_LOOP);
@@ -201,8 +201,8 @@ void display() {
             glVertex2f(rect->posX + 1 + rect->width - 2, rect->posY + 1);
             glEnd();
         }*/
-        glLineWidth(5);
-        glColor3f(255, 0, 0);
+        //glLineWidth(5);
+        //glColor3f(255, 0, 0);
         glBegin(GL_LINE_LOOP);
         glVertex2f(processes[i].posX + 1, processes[i].posY + 1);
         glVertex2f(processes[i].posX + 1, processes[i].posY + 1 + processes[i].height - 2);
