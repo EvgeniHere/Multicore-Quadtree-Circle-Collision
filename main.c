@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
     numCircles = 100000;
     circleSize = 1.0;
     maxSpeed = 1.0;
-    maxCirclesPerCell = 30;
+    maxCirclesPerCell = 100;
     minCellSize = 4 * circleSize;
     circle_max_X = SCREEN_WIDTH;
     circle_max_y = SCREEN_HEIGHT;
@@ -142,16 +142,13 @@ void update() {
 
     updateTree();
 
-    // Nur 16 mal die Sekunde?
     updateCirclesFromTree();
-    // -----------------------
+
     pthread_mutex_unlock(&arrayMutex);
 
-    MPI_Barrier(MPI_COMM_WORLD);
     if (rank != 0) {
         MPI_Send(&numCircles, 1, MPI_INT, 0, tag_numCircles, MPI_COMM_WORLD);
         MPI_Send(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD);
-        //printf("SENT CIRCLES FROM RANK %d.\n", rank);
     } else {
         processes[0].numCircles = numCircles;
         processes[0].circles = circles;
@@ -159,11 +156,9 @@ void update() {
             MPI_Recv(&processes[i].numCircles, 1, MPI_INT, i, tag_numCircles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             processes[i].circles = (struct Circle*) realloc(processes[i].circles, processes[i].numCircles * sizeof(struct Circle));
             MPI_Recv(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            //printf("RECV CIRCLES FROM RANK %d.\n", i);
         }
     }
 
-    //printf("%d\n", frames);
     frames++;
     clock_t end = clock();
     double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
@@ -176,6 +171,8 @@ void update() {
         //exit(0);
         //printTree(rootCell, 0);
     }
+
+    //MPI_Barrier(MPI_COMM_WORLD);
 
     if (rank == 0) {
         glutPostRedisplay();
