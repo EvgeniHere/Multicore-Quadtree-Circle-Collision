@@ -10,9 +10,6 @@
 #include <time.h>
 #include <pthread.h>
 
-#define SCREEN_WIDTH 1000
-#define SCREEN_HEIGHT 1000
-
 int frames = 0;
 clock_t begin;
 pthread_t recvThread;
@@ -49,8 +46,8 @@ int main(int argc, char** argv) {
     numCircles = 1000;
     circleSize = 10.0;
     maxSpeed = 1.0;
-    maxCirclesPerCell = 100;
-    minCellSize = 2 * circleSize;
+    maxCirclesPerCell = 10;
+    minCellSize = 4 * circleSize;
     circle_max_X = SCREEN_WIDTH;
     circle_max_y = SCREEN_HEIGHT;
 
@@ -141,7 +138,6 @@ void distributeCircles() {
 }
 
 void update() {
-    MPI_Barrier(MPI_COMM_WORLD);
     pthread_mutex_lock(&arrayMutex);
 
     //printf("UPDATING RANK %d...\n", rank);
@@ -153,6 +149,7 @@ void update() {
     // -----------------------
     pthread_mutex_unlock(&arrayMutex);
 
+    MPI_Barrier(MPI_COMM_WORLD);
     if (rank != 0) {
         MPI_Send(&numCircles, 1, MPI_INT, 0, tag_numCircles, MPI_COMM_WORLD);
         MPI_Send(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD);
@@ -197,10 +194,10 @@ void display() {
     glLoadIdentity();
     //glPointSize(circleSize);
 
-    /*for (int i = 0; i < numProcesses; i++) {
+    for (int i = 0; i < numProcesses; i++) {
         glLineWidth(1);
         glColor3f(255, 255, 255);
-        for (int j = 0; j < processes[i].numCells; j++) {
+        /*for (int j = 0; j < processes[i].numCells; j++) {
             struct Rectangle* rect = &processes[i].rects[j];
             glBegin(GL_LINE_LOOP);
             glVertex2f(rect->posX + 1, rect->posY + 1);
@@ -208,7 +205,7 @@ void display() {
             glVertex2f(rect->posX + 1 + rect->width - 2, rect->posY + 1 + rect->height - 2);
             glVertex2f(rect->posX + 1 + rect->width - 2, rect->posY + 1);
             glEnd();
-        }
+        }*/
         glLineWidth(5);
         glColor3f(255, 0, 0);
         glBegin(GL_LINE_LOOP);
@@ -217,7 +214,7 @@ void display() {
         glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1 + processes[i].height - 2);
         glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1);
         glEnd();
-    }*/
+    }
 
     glColor3f(255, 255, 255);
     for (int i = 0; i < numProcesses; i++) {

@@ -5,6 +5,9 @@
 #include <pthread.h>
 #include "circle.c"
 
+#define SCREEN_WIDTH 1000
+#define SCREEN_HEIGHT 1000
+
 struct Rectangle {
     double posX;
     double posY;
@@ -69,6 +72,7 @@ bool isCircleFullInsideCellArea(struct Circle* circle, struct Cell* cell);
 bool isCircleOverlappingCellArea(struct Circle* circle, struct Cell* cell);
 bool isCircleOverlappingArea(struct Circle* circle, double posX, double posY, double width, double height);
 bool isCircleCloseToCellArea(struct Circle* circle, struct Cell* cell);
+bool isCircleFullInsideArea(struct Circle* circle, double posX, double posY, double width, double height);
 void printTree(struct Cell* cell, int depth);
 double random_double(double min, double max);
 void updateCirclesFromTree();
@@ -158,7 +162,7 @@ void addCircleToCell(struct Circle* circle, struct Cell* cell) {
                 }
             }
         }
-        cell->circles[cell->numCirclesInCell++] = *circle;
+        cell->circles[cell->numCirclesInCell++] = *circleCopy(circle);
         return;
     }
 
@@ -186,6 +190,7 @@ void updateCell(struct Cell* cell) {
                 i--;
             }
             addCircleToParentCell(cpCircle, cell);
+            free(cpCircle);
         }
         return;
     }
@@ -198,21 +203,24 @@ void updateCell(struct Cell* cell) {
 }
 
 void sendToDifferentProcess(struct Circle* circle) {
+    /*if (!isCircleFullInsideArea(circle, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT))
+        return;*/
     for (int i = 0; i < numProcesses; i++) {
         if (i == rank)
             continue;
         if (!isCircleOverlappingArea(circle, processes[i].posX, processes[i].posY, processes[i].width, processes[i].height))
             continue;
-        //MPI_Request request;
-        //MPI_Status status;
-        MPI_Send(circle, sizeof(struct Circle), MPI_BYTE, i, tag_circle, MPI_COMM_WORLD);
+        MPI_Request request;
+        MPI_Status status;
+        MPI_Isend(circle, sizeof(struct Circle), MPI_BYTE, i, tag_circle, MPI_COMM_WORLD, &request);
         //MPI_Wait(&request, &status);
     }
 }
 
 void addCircleToParentCell(struct Circle* circle, struct Cell* cell) {
     if (cell == rootCell) {
-        sendToDifferentProcess(circle);
+        if (!isCircleOverlappingCellArea(circle, rootCell))
+            sendToDifferentProcess(circle);
         return;
     }
 
@@ -402,9 +410,10 @@ void checkCollisions(struct Cell* cell) {
                 }
             }
         }
-
-        move(circle1);
     }
+
+    for (int i = 0; i < cell->numCirclesInCell; i++)
+        move(&cell->circles[i]);
 }
 
 bool cellContainsCircle(struct Cell* cell, struct Circle* circle) {
@@ -438,6 +447,10 @@ bool isCircleOverlappingArea(struct Circle* circle, double posX, double posY, do
     return circle->posX + circleSize / 2.0 >= posX && circle->posX - circleSize / 2.0 <= posX + width && circle->posY + circleSize / 2.0 >= posY && circle->posY - circleSize / 2.0 <= posY + height;
 }
 
+bool isCircleFullInsideArea(struct Circle* circle, double posX, double posY, double width, double height) {
+    return circle->posX - circleSize / 2.0 >= posX && circle->posX + circleSize / 2.0 <= posX + width && circle->posY - circleSize / 2.0 >= posY && circle->posY + circleSize / 2.0 <= posY + height;
+}
+
 void printTree(struct Cell* cell, int depth) {
     for (int i = 0; i < depth; i++) {
         printf("----");
@@ -468,11 +481,14 @@ void* receiveCircle(void* arg) {
     while (true) {
         struct Circle *circle = (struct Circle *) malloc(sizeof(struct Circle));
 
-        MPI_Recv(circle, sizeof(struct Circle), MPI_BYTE, MPI_ANY_SOURCE, tag_circle, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Status status;
+        MPI_Request request;
+        MPI_Irecv(circle, sizeof(struct Circle), MPI_BYTE, MPI_ANY_SOURCE, tag_circle, MPI_COMM_WORLD, &request);
 
-        pthread_mutex_lock(&arrayMutex);
+        MPI_Wait(&request, &status);
+        //pthread_mutex_lock(&arrayMutex);
         addCircleToCell(circle, rootCell);
-        pthread_mutex_unlock(&arrayMutex);
+        //pthread_mutex_unlock(&arrayMutex);
     }
     return NULL;
 }
