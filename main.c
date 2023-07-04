@@ -43,10 +43,10 @@ int main(int argc, char** argv) {
     //pthread_create(&workThread, NULL, workFunction, NULL);
 
     numProcesses = size;
-    numCircles = 1000;
-    circleSize = 10.0;
+    numCircles = 100000;
+    circleSize = 1.0;
     maxSpeed = 1.0;
-    maxCirclesPerCell = 10;
+    maxCirclesPerCell = 30;
     minCellSize = 4 * circleSize;
     circle_max_X = SCREEN_WIDTH;
     circle_max_y = SCREEN_HEIGHT;
@@ -140,9 +140,7 @@ void distributeCircles() {
 void update() {
     pthread_mutex_lock(&arrayMutex);
 
-    //printf("UPDATING RANK %d...\n", rank);
     updateTree();
-    //printf("UPDATED RANK %d.\n", rank);
 
     // Nur 16 mal die Sekunde?
     updateCirclesFromTree();
@@ -170,13 +168,13 @@ void update() {
     clock_t end = clock();
     double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
     if (time_spent >= 10) {
-        printf("%d frames for 10 seconds\n", frames);
+        //printf("%d frames for 10 seconds\n", frames);
         printf("%f FPS\n", frames / 10.0);
         frames = 0;
         begin = end;
         //MPI_Finalize();
         //exit(0);
-        printTree(rootCell, 0);
+        //printTree(rootCell, 0);
     }
 
     if (rank == 0) {
