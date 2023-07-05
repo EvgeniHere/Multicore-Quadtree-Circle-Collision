@@ -299,54 +299,55 @@ void checkCollisions(struct Cell* cell) {
         return;
     }
 
-    for (int i = 0; i < cell->numCirclesInCell - 1; i++) {
+    for (int i = 0; i < cell->numCirclesInCell; i++) {
         int id_1 = cell->circle_ids[i];
+        struct Circle* circle1 = &circles[id_1];
 
-        for (int j = i + 1; j < cell->numCirclesInCell; j++) {
+        for (int j = i; j < cell->numCirclesInCell; j++) {
             int id_2 = cell->circle_ids[j];
 
-            if (fabs(circles[id_1].posX - circles[id_2].posX) > circleSize ||
-                fabs(circles[id_1].posY - circles[id_2].posY) > circleSize)
+            if (id_1 == id_2)
                 continue;
 
-            double dx = circles[id_2].posX - circles[id_1].posX;
-            double dy = circles[id_2].posY - circles[id_1].posY;
+            struct Circle* circle2 = &circles[id_2];
+
+
+            double dx = circle2->posX - circle1->posX;
+            double dy = circle2->posY - circle1->posY;
+
+            if (fabs(dx) > circleSize || fabs(dy) > circleSize)
+                continue;
+
             double distSquared = dx * dx + dy * dy;
-            double sum_r = circleSize;
 
-            if (distSquared < sum_r * sum_r) {
-                if (distSquared < sum_r * sum_r) {
-                    double dist = sqrt(distSquared);
-                    double overlap = (sum_r - dist) / 2.0;
-                    dx /= dist;
-                    dy /= dist;
+            if (distSquared < circleSize * circleSize) {
+                double dist = sqrt(distSquared);
+                double overlap = (circleSize - dist) / 2.0;
+                dx /= dist;
+                dy /= dist;
 
-                    circles[id_1].posX -= overlap * dx;
-                    circles[id_1].posY -= overlap * dy;
-                    circles[id_2].posX += overlap * dx;
-                    circles[id_2].posY += overlap * dy;
+                circle1->posX -= overlap * dx;
+                circle1->posY -= overlap * dy;
+                circle2->posX += overlap * dx;
+                circle2->posY += overlap * dy;
 
-                    double dvx = circles[id_2].velX - circles[id_1].velX;
-                    double dvy = circles[id_2].velY - circles[id_1].velY;
-                    double dot = dvx * dx + dvy * dy;
+                double dvx = circle2->velX - circle1->velX;
+                double dvy = circle2->velY - circle1->velY;
+                double dot = dvx * dx + dvy * dy;
 
-                    circles[id_1].velX += dot * dx;
-                    circles[id_1].velY += dot * dy;
-                    circles[id_2].velX -= dot * dx;
-                    circles[id_2].velY -= dot * dy;
+                circle1->velX += dot * dx;
+                circle1->velY += dot * dy;
+                circle2->velX -= dot * dx;
+                circle2->velY -= dot * dy;
 
-                    circles[id_1].velX *= friction;
-                    circles[id_1].velY *= friction;
-                    circles[id_2].velX *= friction;
-                    circles[id_2].velY *= friction;
-                }
+                circle1->velX *= friction;
+                circle1->velY *= friction;
+                circle2->velX *= friction;
+                circle2->velY *= friction;
             }
         }
-    }
 
-    for (int i = 0; i < cell->numCirclesInCell; i++) {
-        int id = cell->circle_ids[i];
-        checkPosition(&circles[id]);
+        checkPosition(circle1);
     }
 }
 

@@ -9,9 +9,6 @@
 #include <errno.h>
 #include <time.h>
 
-#define SCREEN_WIDTH 1000
-#define SCREEN_HEIGHT 1000
-
 int tag_circles = 1;
 int tag_numCircles = 2;
 int tag_process = 3;
@@ -63,8 +60,10 @@ int main(int argc, char** argv) {
     numCircles = 100000;
     circleSize = 1.0;
     maxSpeed = 1.0;
-    maxCirclesPerCell = 30;
+    maxCirclesPerCell = 100;
     minCellSize = 2 * circleSize;
+    friction = 0.999;
+    gravity = 0.000001;
     circle_max_X = SCREEN_WIDTH;
     circle_max_y = SCREEN_HEIGHT;
 
@@ -75,10 +74,25 @@ int main(int argc, char** argv) {
     if (rank == 0) {
         srand(90);
         for (int i = 0; i < numCircles; i++) {
+            //circles[i].id = i;
             circles[i].posX = random_double(circleSize / 2.0, SCREEN_WIDTH - circleSize / 2.0);
             circles[i].posY = random_double(circleSize / 2.0, SCREEN_HEIGHT - circleSize / 2.0);
-            circles[i].velX = random_double(-maxSpeed, maxSpeed);
-            circles[i].velY = random_double(-maxSpeed, maxSpeed);
+            if (circles[i].posX < SCREEN_WIDTH/2.0 && circles[i].posY < SCREEN_HEIGHT/2.0) {
+                circles[i].velX = 0;
+                circles[i].velY = maxSpeed;//random_double(0.001, maxSpeed);
+            } else if (circles[i].posX < SCREEN_WIDTH/2.0 && circles[i].posY >= SCREEN_HEIGHT/2.0) {
+                circles[i].velX = maxSpeed;//random_double(0.001, maxSpeed);
+                circles[i].velY = 0;
+            } else if (circles[i].posX >= SCREEN_WIDTH/2.0 && circles[i].posY < SCREEN_HEIGHT/2.0) {
+                circles[i].velX = -maxSpeed;//random_double(-0.001, -maxSpeed);
+                circles[i].velY = 0;
+            } else if (circles[i].posX >= SCREEN_WIDTH/2.0 && circles[i].posY >= SCREEN_HEIGHT/2.0) {
+                circles[i].velX = 0;
+                circles[i].velY = -maxSpeed;//random_double(-0.001, -maxSpeed);
+            }
+            //circles[i].velX = random_double(-maxSpeed, maxSpeed);
+            //circles[i].velY = random_double(-maxSpeed, maxSpeed);
+            //circles[i].mass = circles[i]->size;
         }
 
         processes = (struct Process*) malloc(numProcesses * sizeof(struct Process));
@@ -173,7 +187,7 @@ void update() {
         clock_t end = clock();
         double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
         if (time_spent >= 10) {
-            printf("%d frames for 10 seconds\n", frames);
+            //printf("%d frames for 10 seconds\n", frames);
             printf("%f FPS\n", frames / 10.0);
             frames = 0;
             begin = end;
@@ -195,7 +209,7 @@ void display() {
     glLoadIdentity();
     //glPointSize(circleSize);
 
-    for (int i = 0; i < numProcesses; i++) {
+    /*for (int i = 0; i < numProcesses; i++) {
         /*glLineWidth(1);
         glColor3f(255, 255, 255);
         for (int j = 0; j < processes[i].numCells; j++) {
@@ -206,7 +220,7 @@ void display() {
             glVertex2f(rect->posX + 1 + rect->width - 2, rect->posY + 1 + rect->height - 2);
             glVertex2f(rect->posX + 1 + rect->width - 2, rect->posY + 1);
             glEnd();
-        }*/
+        }
         glLineWidth(5);
         glColor3f(255, 0, 0);
         glBegin(GL_LINE_LOOP);
@@ -215,7 +229,7 @@ void display() {
         glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1 + processes[i].height - 2);
         glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1);
         glEnd();
-    }
+    }*/
 
     glColor3f(255, 255, 255);
     for (int i = 0; i < numCircles; i++) {
