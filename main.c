@@ -13,6 +13,7 @@
 int frames = 0;
 clock_t begin;
 pthread_t recvThread;
+pthread_t sendThread;
 
 int main(int argc, char** argv);
 void update();
@@ -39,20 +40,20 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    //pthread_t workThread;
-    //pthread_create(&workThread, NULL, workFunction, NULL);
-
     numProcesses = size;
     numCircles = 100000;
     circleSize = 1.0;
     maxSpeed = 1.0;
     maxCirclesPerCell = 100;
-    minCellSize = 2 * circleSize;
+    minCellSize = 2 * circleSize + 2 * maxSpeed;
     friction = 0.999;
     gravity = 0.000001;
     circle_max_X = SCREEN_WIDTH;
     circle_max_y = SCREEN_HEIGHT;
 
+    startNumCircles = numCircles;
+    maxOutgoing = 1000;
+    maxIngoing = 50;
     circles = (struct Circle *) malloc(sizeof(struct Circle) * numCircles);
     processes = (struct Process*) malloc(numProcesses * sizeof(struct Process));
 
@@ -111,6 +112,7 @@ int main(int argc, char** argv) {
     setupQuadtree(processes[rank].posX, processes[rank].posY, processes[rank].width, processes[rank].height);
 
     pthread_create(&recvThread, NULL, receiveCircle, NULL);
+    pthread_create(&sendThread, NULL, sendCircle, NULL);
 
     if (rank == 0) {
         glutInit((int *) &argc, argv);
@@ -122,8 +124,8 @@ int main(int argc, char** argv) {
         }
     }
 
-    //pthread_join(workThread, NULL);
     pthread_join(recvThread, NULL);
+    pthread_join(sendThread, NULL);
 
     MPI_Finalize();
     return 0;
@@ -163,17 +165,28 @@ void update() {
 
     if (rank != 0) {
         MPI_Send(&numCircles, 1, MPI_INT, 0, tag_numCircles, MPI_COMM_WORLD);
-        MPI_Send(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD);
+        MPI_Request request;
+        MPI_Status status;
+        MPI_Isend(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD, &request);
+        MPI_Wait(&request, &status);
     } else {
         processes[0].numCircles = numCircles;
         processes[0].circles = circles;
+
         for (int i = 1; i < numProcesses; i++) {
             MPI_Recv(&processes[i].numCircles, 1, MPI_INT, i, tag_numCircles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            processes[i].circles = (struct Circle*) realloc(processes[i].circles, processes[i].numCircles * sizeof(struct Circle));
-            MPI_Recv(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i, tag_circles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
+
+        MPI_Request* requests = malloc((numProcesses - 1) * sizeof(MPI_Request));
+        MPI_Status* statuses = malloc((numProcesses - 1) * sizeof(MPI_Status));
+
+        for (int i = 1; i < numProcesses; i++) {
+            processes[i].circles = (struct Circle*) realloc(processes[i].circles, processes[i].numCircles * sizeof(struct Circle));
+            MPI_Irecv(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i, tag_circles, MPI_COMM_WORLD, &requests[i-1]);
+        }
+
+        MPI_Waitall(numProcesses - 1, requests, statuses);
     }
-    MPI_Barrier(MPI_COMM_WORLD);
 
     frames++;
     clock_t end = clock();

@@ -55,8 +55,16 @@ int tag_circle_inside = 6;
 int last_tag = 7;
 
 pthread_mutex_t arrayMutex;
+pthread_mutex_t outgoingMutex;
 
 int rank, size;
+
+int startNumCircles = 0;
+
+struct Circle* outgoingCircles;
+int numOutgoing = 0;
+int maxOutgoing = 1000;
+int maxIngoing = 1000;
 
 void updateCell(struct Cell* cell);
 void addCircleToCell(struct Circle* circle, struct Cell* cell);
@@ -94,6 +102,8 @@ void setupQuadtree(double rootCellX, double rootCellY, double rootCellWidth, dou
         exit(1);
     }
     rootCell->subcells = NULL;
+
+    outgoingCircles = (struct Circle*) malloc(maxOutgoing * sizeof(struct Circle));
 
     for (int i = 0; i < numCircles; i++) {
         addCircleToCell(&circles[i], rootCell);
@@ -203,19 +213,24 @@ void updateCell(struct Cell* cell) {
 }
 
 void sendToDifferentProcess(struct Circle* circle) {
-    //if (!isCircleFullInsideArea(circle, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT))
-      //  return;
-    for (int i = 0; i < numProcesses; i++) {
-        if (i == rank)
-            continue;
-        if (!isCircleOverlappingArea(circle, processes[i].posX, processes[i].posY, processes[i].width, processes[i].height))
-            continue;
-        MPI_Request request;
-        MPI_Status status;
-        MPI_Isend(circle, sizeof(struct Circle), MPI_BYTE, i, tag_circle, MPI_COMM_WORLD, &request);
-        MPI_Wait(&request, &status);
-        return;
+    if (numOutgoing >= maxOutgoing) {
+        printf("Maximum outgoing circles reached!\n");
+        while(numOutgoing >= maxOutgoing) {
+            usleep(5000);
+        }
     }
+    pthread_mutex_lock(&outgoingMutex);
+
+    for (int i = 0; i < numOutgoing; i++) {
+        if (outgoingCircles[i].id == circle->id) {
+            pthread_mutex_unlock(&outgoingMutex);
+            return;
+        }
+    }
+
+    outgoingCircles[numOutgoing++] = *circle;
+
+    pthread_mutex_unlock(&outgoingMutex);
 }
 
 void addCircleToParentCell(struct Circle* circle, struct Cell* cell) {
@@ -371,10 +386,13 @@ void checkCollisions(struct Cell* cell) {
         return;
     }
 
-    for (int i = 0; i < cell->numCirclesInCell - 1; i++) {
+    for (int i = 0; i < cell->numCirclesInCell; i++) {
         struct Circle* circle1 = &cell->circles[i];
 
-        for (int j = i + 1; j < cell->numCirclesInCell; j++) {
+        for (int j = i; j < cell->numCirclesInCell; j++) {
+            if (i == j)
+                continue;
+
             struct Circle* circle2 = &cell->circles[j];
 
             if (fabs(circle1->posX - circle2->posX) > circleSize ||
@@ -384,40 +402,34 @@ void checkCollisions(struct Cell* cell) {
             double dx = circle2->posX - circle1->posX;
             double dy = circle2->posY - circle1->posY;
             double distSquared = dx * dx + dy * dy;
-            double sum_r = circleSize;
 
-            if (distSquared < sum_r * sum_r) {
-                if (distSquared < sum_r * sum_r) {
-                    double dist = sqrt(distSquared);
-                    double overlap = (sum_r - dist) / 2.0;
-                    dx /= dist;
-                    dy /= dist;
+            if (distSquared < circleSize * circleSize) {
+                double dist = sqrt(distSquared);
+                double overlap = (circleSize - dist) / 2.0;
+                dx /= dist;
+                dy /= dist;
 
-                    circle1->posX -= overlap * dx;
-                    circle1->posY -= overlap * dy;
-                    circle2->posX += overlap * dx;
-                    circle2->posY += overlap * dy;
+                circle1->posX -= overlap * dx;
+                circle1->posY -= overlap * dy;
+                circle2->posX += overlap * dx;
+                circle2->posY += overlap * dy;
 
-                    double dvx = circle2->velX - circle1->velX;
-                    double dvy = circle2->velY - circle1->velY;
-                    double dot = dvx * dx + dvy * dy;
+                double dvx = circle2->velX - circle1->velX;
+                double dvy = circle2->velY - circle1->velY;
+                double dot = dvx * dx + dvy * dy;
 
-                    circle1->velX += dot * dx;
-                    circle1->velY += dot * dy;
-                    circle2->velX -= dot * dx;
-                    circle2->velY -= dot * dy;
+                circle1->velX += dot * dx;
+                circle1->velY += dot * dy;
+                circle2->velX -= dot * dx;
+                circle2->velY -= dot * dy;
 
-                    circle1->velX *= friction;
-                    circle1->velY *= friction;
-                    circle2->velX *= friction;
-                    circle2->velY *= friction;
-                }
+                circle1->velX *= friction;
+                circle1->velY *= friction;
+                circle2->velX *= friction;
+                circle2->velY *= friction;
             }
         }
-    }
-
-    for (int i = 0; i < cell->numCirclesInCell; i++) {
-        move(&cell->circles[i]);
+        move(circle1);
     }
 }
 
@@ -484,20 +496,57 @@ double random_double(double min, double max) {
 
 void* receiveCircle(void* arg) {
     while (true) {
-        struct Circle *circle = (struct Circle *) malloc(sizeof(struct Circle));
+        struct Circle *ingoingCircles = (struct Circle *) malloc(maxIngoing * sizeof(struct Circle));
 
-        MPI_Request request;
-        MPI_Status status;
-        MPI_Irecv(circle, sizeof(struct Circle), MPI_BYTE, MPI_ANY_SOURCE, tag_circle, MPI_COMM_WORLD, &request);
-        MPI_Wait(&request, &status);
+        MPI_Request* requests = malloc(maxIngoing * sizeof(MPI_Request));
+        MPI_Status* statuses = malloc(maxIngoing * sizeof(MPI_Status));
+
+        for (int i = 0; i < maxIngoing; i++) {
+            MPI_Irecv(&ingoingCircles[i], sizeof(struct Circle), MPI_BYTE, MPI_ANY_SOURCE, tag_circle, MPI_COMM_WORLD, &requests[i]);
+        }
+
+        MPI_Waitall(maxIngoing, requests, statuses);
 
         pthread_mutex_lock(&arrayMutex);
-        //printf("%d Received %d\n", rank, circle->id);
-        //printTree(rootCell, 0);
-        addCircleToCell(circle, rootCell);
-        //printf("%d Updated tree: %d\n", rank, circle->id);
-        //printTree(rootCell, 0);
+        for (int i = 0; i < maxIngoing; i++) {
+            addCircleToCell(&ingoingCircles[i], rootCell);
+        }
         pthread_mutex_unlock(&arrayMutex);
+    }
+    return NULL;
+}
+
+void* sendCircle(void* arg) {
+    int oldNumOutgoing;
+    while (true) {
+        while (numOutgoing == 0) {
+            usleep(5000);
+        }
+        oldNumOutgoing = numOutgoing;
+
+        pthread_mutex_lock(&outgoingMutex);
+
+        MPI_Request* requests = malloc(numOutgoing * sizeof(MPI_Request));
+        MPI_Status* statuses = malloc(numOutgoing * sizeof(MPI_Status));
+
+        for (int i = 0; i < numOutgoing; i++) {
+            for (int j = 0; j < numProcesses; j++) {
+                if (j == rank)
+                    continue;
+                if (!isCircleOverlappingArea(&outgoingCircles[i], processes[j].posX, processes[j].posY, processes[j].width, processes[j].height))
+                    continue;
+                MPI_Isend(&outgoingCircles[i], sizeof(struct Circle), MPI_BYTE, j, tag_circle, MPI_COMM_WORLD, &requests[i]);
+                break;
+            }
+        }
+
+        numOutgoing = 0;
+        pthread_mutex_unlock(&outgoingMutex);
+
+        MPI_Waitall(oldNumOutgoing, requests, statuses);
+
+        free(requests);
+        free(statuses);
     }
     return NULL;
 }
