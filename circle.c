@@ -1,7 +1,7 @@
 #include <stdbool.h>
 
-#define SCREEN_WIDTH 1000
-#define SCREEN_HEIGHT 1000
+#define SCREEN_WIDTH 1000.0
+#define SCREEN_HEIGHT 1000.0
 
 struct Circle {
     int id;
@@ -14,8 +14,8 @@ struct Circle {
 double circleSize = 0;
 double maxSpeed = 0;
 
-double friction = 0.9;
-double gravity = 0.01;
+double friction = 0.999;
+double gravity = 0.00001;
 bool gravityState = true;
 
 int circle_max_X = 0;
@@ -26,7 +26,7 @@ struct Circle* circleCopy(struct Circle* circle);
 
 void move(struct Circle* circle) {
     if (gravityState) {
-        if (circle->posX > SCREEN_WIDTH / 2.0) {
+        /*if (circle->posX > SCREEN_WIDTH / 2.0) {
             circle->velX -= gravity;
         } else {
             circle->velX += gravity;
@@ -35,7 +35,9 @@ void move(struct Circle* circle) {
             circle->velY -= gravity;
         } else {
             circle->velY += gravity;
-        }
+        }*/
+        circle->velX -= gravity*(circle->posX - SCREEN_WIDTH / 2.0);
+        circle->velY -= gravity*(circle->posY - SCREEN_HEIGHT / 2.0);
     }
 
     if (circle->velX > maxSpeed)

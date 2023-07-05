@@ -46,8 +46,10 @@ int main(int argc, char** argv) {
     numCircles = 100000;
     circleSize = 1.0;
     maxSpeed = 1.0;
-    maxCirclesPerCell = 50;
-    minCellSize = 4 * circleSize;
+    maxCirclesPerCell = 100;
+    minCellSize = 2 * circleSize;
+    friction = 0.999;
+    gravity = 0.000001;
     circle_max_X = SCREEN_WIDTH;
     circle_max_y = SCREEN_HEIGHT;
 
@@ -60,8 +62,22 @@ int main(int argc, char** argv) {
             circles[i].id = i;
             circles[i].posX = random_double(circleSize / 2.0, SCREEN_WIDTH - circleSize / 2.0);
             circles[i].posY = random_double(circleSize / 2.0, SCREEN_HEIGHT - circleSize / 2.0);
-            circles[i].velX = random_double(-maxSpeed, maxSpeed);
-            circles[i].velY = random_double(-maxSpeed, maxSpeed);
+            if (circles[i].posX < SCREEN_WIDTH/2.0 && circles[i].posY < SCREEN_HEIGHT/2.0) {
+                circles[i].velX = 0;
+                circles[i].velY = maxSpeed;//random_double(0.001, maxSpeed);
+            } else if (circles[i].posX < SCREEN_WIDTH/2.0 && circles[i].posY >= SCREEN_HEIGHT/2.0) {
+                circles[i].velX = maxSpeed;//random_double(0.001, maxSpeed);
+                circles[i].velY = 0;
+            } else if (circles[i].posX >= SCREEN_WIDTH/2.0 && circles[i].posY < SCREEN_HEIGHT/2.0) {
+                circles[i].velX = -maxSpeed;//random_double(-0.001, -maxSpeed);
+                circles[i].velY = 0;
+            } else if (circles[i].posX >= SCREEN_WIDTH/2.0 && circles[i].posY >= SCREEN_HEIGHT/2.0) {
+                circles[i].velX = 0;
+                circles[i].velY = -maxSpeed;//random_double(-0.001, -maxSpeed);
+            }
+            //circles[i].velX = random_double(-maxSpeed, maxSpeed);
+            //circles[i].velY = random_double(-maxSpeed, maxSpeed);
+            //circles[i].mass = circles[i]->size;
         }
 
         int numColumns = (int)ceil(sqrt(numProcesses));
@@ -189,10 +205,10 @@ void display() {
     glLineWidth(3);
     glColor3f(255, 0, 0);
 
-    for (int i = 0; i < numProcesses; i++) {
-        //glLineWidth(1);
-        //glColor3f(255, 255, 255);
-        /*for (int j = 0; j < processes[i].numCells; j++) {
+    /*for (int i = 0; i < numProcesses; i++) {
+        glLineWidth(1);
+        glColor3f(255, 255, 255);
+        for (int j = 0; j < processes[i].numCells; j++) {
             struct Rectangle* rect = &processes[i].rects[j];
             glBegin(GL_LINE_LOOP);
             glVertex2f(rect->posX + 1, rect->posY + 1);
@@ -200,7 +216,7 @@ void display() {
             glVertex2f(rect->posX + 1 + rect->width - 2, rect->posY + 1 + rect->height - 2);
             glVertex2f(rect->posX + 1 + rect->width - 2, rect->posY + 1);
             glEnd();
-        }*/
+        }
         //glLineWidth(5);
         //glColor3f(255, 0, 0);
         glBegin(GL_LINE_LOOP);
@@ -209,7 +225,7 @@ void display() {
         glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1 + processes[i].height - 2);
         glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1);
         glEnd();
-    }
+    }*/
 
     glColor3f(255, 255, 255);
     for (int i = 0; i < numProcesses; i++) {

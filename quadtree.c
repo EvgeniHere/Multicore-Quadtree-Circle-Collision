@@ -6,9 +6,6 @@
 #include <unistd.h>
 #include "circle.c"
 
-#define SCREEN_WIDTH 1000
-#define SCREEN_HEIGHT 1000
-
 struct Rectangle {
     double posX;
     double posY;
