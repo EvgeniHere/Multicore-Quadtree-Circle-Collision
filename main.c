@@ -53,7 +53,7 @@ int main(int argc, char** argv) {
 
     startNumCircles = numCircles;
     maxOutgoing = 1000;
-    maxIngoing = 50;
+    maxIngoing = 10;
     circles = (struct Circle *) malloc(sizeof(struct Circle) * numCircles);
     processes = (struct Process*) malloc(numProcesses * sizeof(struct Process));
 
@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
             circles[i].id = i;
             circles[i].posX = random_double(circleSize / 2.0, SCREEN_WIDTH - circleSize / 2.0);
             circles[i].posY = random_double(circleSize / 2.0, SCREEN_HEIGHT - circleSize / 2.0);
-            if (circles[i].posX < SCREEN_WIDTH/2.0 && circles[i].posY < SCREEN_HEIGHT/2.0) {
+            /*if (circles[i].posX < SCREEN_WIDTH/2.0 && circles[i].posY < SCREEN_HEIGHT/2.0) {
                 circles[i].velX = 0;
                 circles[i].velY = maxSpeed;//random_double(0.001, maxSpeed);
             } else if (circles[i].posX < SCREEN_WIDTH/2.0 && circles[i].posY >= SCREEN_HEIGHT/2.0) {
@@ -75,9 +75,9 @@ int main(int argc, char** argv) {
             } else if (circles[i].posX >= SCREEN_WIDTH/2.0 && circles[i].posY >= SCREEN_HEIGHT/2.0) {
                 circles[i].velX = 0;
                 circles[i].velY = -maxSpeed;//random_double(-0.001, -maxSpeed);
-            }
-            //circles[i].velX = random_double(-maxSpeed, maxSpeed);
-            //circles[i].velY = random_double(-maxSpeed, maxSpeed);
+            }*/
+            circles[i].velX = random_double(-maxSpeed, maxSpeed);
+            circles[i].velY = random_double(-maxSpeed, maxSpeed);
             //circles[i].mass = circles[i]->size;
         }
 
@@ -162,6 +162,8 @@ void update() {
     updateCirclesFromTree();
 
     pthread_mutex_unlock(&arrayMutex);
+
+    MPI_Barrier(MPI_COMM_WORLD);
 
     if (rank != 0) {
         MPI_Send(&numCircles, 1, MPI_INT, 0, tag_numCircles, MPI_COMM_WORLD);
