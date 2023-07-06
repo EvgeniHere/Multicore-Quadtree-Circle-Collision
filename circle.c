@@ -1,7 +1,7 @@
 #include <stdbool.h>
 
-#define SCREEN_WIDTH 2300.0
-#define SCREEN_HEIGHT 1300.0
+#define SCREEN_WIDTH 1000.0
+#define SCREEN_HEIGHT 1000.0
 
 struct Circle {
     int id;

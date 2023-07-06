@@ -46,16 +46,16 @@ int main(int argc, char** argv) {
     numProcesses = size;
     numCircles = 100;
     circleSize = 1.0;
-    maxSpeed = 1.0;
-    maxCirclesPerCell = 5;
+    maxSpeed = 0.5;
+    maxCirclesPerCell = 2;
     minCellSize = 4 * circleSize + 4 * maxSpeed;
     friction = 0.999;
     gravity = 0.000001;
     circle_max_X = SCREEN_WIDTH;
     circle_max_Y = SCREEN_HEIGHT;
-    moduloIteration = 1;
+    moduloIteration = 5;
 
-    startNumCircles = numCircles;
+    //startNumCircles = numCircles;
     maxOutgoing = 1000;
     circles = (struct Circle *) malloc(numCircles * sizeof(struct Circle));
     processes = (struct Process*) malloc(numProcesses * sizeof(struct Process));
@@ -114,8 +114,12 @@ int main(int argc, char** argv) {
     MPI_Bcast(processes, numProcesses * sizeof(struct Process), MPI_BYTE, 0, MPI_COMM_WORLD);
     setupQuadtree(processes[rank].posX, processes[rank].posY, processes[rank].width, processes[rank].height);
 
-    pthread_create(&sendThread, NULL, sendCircle, NULL);
-    pthread_create(&recvThread, NULL, receiveCircle, NULL);
+    if (numProcesses > 1) {
+        pthread_create(&sendThread, NULL, sendCircle, NULL);
+        pthread_create(&recvThread, NULL, receiveCircle, NULL);
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
 
     if (rank == 0) {
         glutInit((int *) &argc, argv);
@@ -136,6 +140,8 @@ int main(int argc, char** argv) {
 
 void distributeCircles() {
     for (int i = 0; i < numProcesses; i++) {
+        processes[i].numCells = 100;
+        processes[i].cells = malloc(processes[i].numCells * sizeof(struct Rectangle));
         processes[i].numCircles = 0;
         for (int j = 0; j < numCircles; j++) {
             if (!isCircleOverlappingArea(&circles[j], processes[i].posX, processes[i].posY, processes[i].width, processes[i].height))
@@ -161,52 +167,63 @@ void distributeCircles() {
 void update() {
     updateTree();
 
-    if (iterations % 1000 == 0)
+    if (iterations % 10 == 0) {
         printTree(rootCell, 0);
-
-    if (iterations % moduloIteration == 0) {
-        updateCirclesFromTree();
-        MPI_Barrier(MPI_COMM_WORLD);
     }
 
     if (iterations % moduloIteration == 0) {
-        if (rank != 0) {
-            MPI_Request request1;
-            MPI_Status status1;
-            MPI_Isend(&numCircles, 1, MPI_INT, 0, tag_numCircles, MPI_COMM_WORLD, &request1);
-            MPI_Wait(&request1, &status1);
-            MPI_Request request2;
-            MPI_Status status2;
-            MPI_Isend(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD, &request2);
-            MPI_Wait(&request2, &status2);
-        } else {
-            processes[0].numCircles = numCircles;
-            processes[0].circles = circles;
+        updateVisualsFromTree();
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
 
+    if (numProcesses > 1 && iterations % moduloIteration == 0) {
+        if (rank != 0) {
+            MPI_Request request1, request2, request3, request4;
+            MPI_Status status1, status2, status3, status4;
+
+            MPI_Isend(&numCircles, 1, MPI_INT, 0, tag_numCircles, MPI_COMM_WORLD, &request1);
+            MPI_Isend(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD, &request2);
+            MPI_Isend(&numRects, 1, MPI_INT, 0, tag_numCells, MPI_COMM_WORLD, &request3);
+            MPI_Isend(rects, numRects * sizeof(struct Rectangle), MPI_BYTE, 0, tag_cells, MPI_COMM_WORLD, &request4);
+
+            MPI_Wait(&request1, &status1);
+            MPI_Wait(&request2, &status2);
+            MPI_Wait(&request3, &status3);
+            MPI_Wait(&request4, &status4);
+        } else {
             MPI_Request *requests1 = malloc((numProcesses - 1) * sizeof(MPI_Request));
             MPI_Status *statuses1 = malloc((numProcesses - 1) * sizeof(MPI_Status));
-
-            for (int i = 1; i < numProcesses; i++) {
-                MPI_Irecv(&processes[i].numCircles, 1, MPI_INT, i, tag_numCircles, MPI_COMM_WORLD, &requests1[i - 1]);
-            }
-
-            MPI_Waitall(numProcesses - 1, requests1, statuses1);
-
-            free(requests1);
-            free(statuses1);
-
             MPI_Request *requests2 = malloc((numProcesses - 1) * sizeof(MPI_Request));
             MPI_Status *statuses2 = malloc((numProcesses - 1) * sizeof(MPI_Status));
-
             for (int i = 1; i < numProcesses; i++) {
-                processes[i].circles = (struct Circle *) realloc(processes[i].circles,
-                                                                 processes[i].numCircles * sizeof(struct Circle));
-                MPI_Irecv(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i,
-                          tag_circles, MPI_COMM_WORLD, &requests2[i - 1]);
+                int source;
+                MPI_Request request;
+                MPI_Status status;
+                int num = 0;
+                MPI_Irecv(&num, 1, MPI_INT, MPI_ANY_SOURCE, tag_numCircles, MPI_COMM_WORLD, &request);
+                MPI_Wait(&request, &status);
+                source = status.MPI_SOURCE;
+                processes[source].numCircles = num;
+                processes[source].circles = (struct Circle*) realloc(processes[source].circles, processes[source].numCircles * sizeof(struct Circle));
+                MPI_Irecv(processes[source].circles, processes[source].numCircles * sizeof(struct Circle), MPI_BYTE, source, tag_circles, MPI_COMM_WORLD, &requests1[source - 1]);
             }
 
+            for (int i = 1; i < numProcesses; i++) {
+                int source;
+                MPI_Request request;
+                MPI_Status status;
+                int num = 0;
+                MPI_Irecv(&num, 1, MPI_INT, MPI_ANY_SOURCE, tag_numCells, MPI_COMM_WORLD, &request);
+                MPI_Wait(&request, &status);
+                source = status.MPI_SOURCE;
+                processes[source].numCells = num;
+                processes[source].cells = (struct Rectangle*) realloc(processes[source].cells, processes[source].numCells * sizeof(struct Rectangle));
+                MPI_Irecv(processes[source].cells, processes[source].numCells * sizeof(struct Rectangle), MPI_BYTE, source, tag_cells, MPI_COMM_WORLD, &requests2[source - 1]);
+            }
+            MPI_Waitall(numProcesses - 1, requests1, statuses1);
+            free(requests1);
+            free(statuses1);
             MPI_Waitall(numProcesses - 1, requests2, statuses2);
-
             free(requests2);
             free(statuses2);
         }
@@ -218,7 +235,7 @@ void update() {
     if (time_spent >= 10) {
         //printf("%d frames for 10 seconds\n", frames);
         if (rank == 0)
-            printf("%f FPS\n", frames / 10.0);
+            printf("%f FPS\n", frames / time_spent);
         frames = 0;
         iterations = 0;
         begin = end;
@@ -229,10 +246,15 @@ void update() {
 
     if (rank == 0) {
         if (iterations % moduloIteration == 0) {
+            processes[0].numCells = numRects;
+            processes[0].cells = rects;
+            processes[0].numCircles = numCircles;
+            processes[0].circles = circles;
             glutPostRedisplay();
             frames++;
         }
-        glutTimerFunc(0, update, 0);
+        glutTimerFunc(10, update, 0);
+        //printTree(rootCell, 0);
     }
 }
 
@@ -247,11 +269,11 @@ void display() {
     //glLineWidth(3);
     //glColor3f(255, 0, 0);
 
-    /*for (int i = 0; i < numProcesses; i++) {
+    for (int i = 0; i < numProcesses; i++) {
         glLineWidth(1);
         glColor3f(255, 255, 255);
         for (int j = 0; j < processes[i].numCells; j++) {
-            struct Rectangle* rect = &processes[i].rects[j];
+            struct Rectangle* rect = &processes[i].cells[j];
             glBegin(GL_LINE_LOOP);
             glVertex2f(rect->posX + 1, rect->posY + 1);
             glVertex2f(rect->posX + 1, rect->posY + 1 + rect->height - 2);
@@ -259,15 +281,15 @@ void display() {
             glVertex2f(rect->posX + 1 + rect->width - 2, rect->posY + 1);
             glEnd();
         }
-        //glLineWidth(5);
-        //glColor3f(255, 0, 0);
+        glLineWidth(5);
+        glColor3f(255, 0, 0);
         glBegin(GL_LINE_LOOP);
         glVertex2f(processes[i].posX + 1, processes[i].posY + 1);
         glVertex2f(processes[i].posX + 1, processes[i].posY + 1 + processes[i].height - 2);
         glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1 + processes[i].height - 2);
         glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1);
         glEnd();
-    }*/
+    }
 
     glColor3f(255, 255, 255);
     for (int i = 0; i < numProcesses; i++) {
