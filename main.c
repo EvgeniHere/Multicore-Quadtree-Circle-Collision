@@ -11,9 +11,12 @@
 #include <pthread.h>
 
 int frames = 0;
+int iterations = 0;
 clock_t begin;
 pthread_t recvThread;
 pthread_t sendThread;
+
+int moduloIteration;
 
 int main(int argc, char** argv);
 void update();
@@ -45,16 +48,16 @@ int main(int argc, char** argv) {
     circleSize = 1.0;
     maxSpeed = 1.0;
     maxCirclesPerCell = 100;
-    minCellSize = 2 * circleSize + 2 * maxSpeed;
+    minCellSize = 4 * circleSize + 4 * maxSpeed;
     friction = 0.999;
     gravity = 0.000001;
     circle_max_X = SCREEN_WIDTH;
     circle_max_y = SCREEN_HEIGHT;
+    moduloIteration = 5;
 
     startNumCircles = numCircles;
     maxOutgoing = 1000;
-    maxIngoing = 10;
-    circles = (struct Circle *) malloc(sizeof(struct Circle) * numCircles);
+    circles = (struct Circle *) malloc(numCircles * sizeof(struct Circle));
     processes = (struct Process*) malloc(numProcesses * sizeof(struct Process));
 
     if (rank == 0) {
@@ -63,7 +66,7 @@ int main(int argc, char** argv) {
             circles[i].id = i;
             circles[i].posX = random_double(circleSize / 2.0, SCREEN_WIDTH - circleSize / 2.0);
             circles[i].posY = random_double(circleSize / 2.0, SCREEN_HEIGHT - circleSize / 2.0);
-            /*if (circles[i].posX < SCREEN_WIDTH/2.0 && circles[i].posY < SCREEN_HEIGHT/2.0) {
+            if (circles[i].posX < SCREEN_WIDTH/2.0 && circles[i].posY < SCREEN_HEIGHT/2.0) {
                 circles[i].velX = 0;
                 circles[i].velY = maxSpeed;//random_double(0.001, maxSpeed);
             } else if (circles[i].posX < SCREEN_WIDTH/2.0 && circles[i].posY >= SCREEN_HEIGHT/2.0) {
@@ -75,9 +78,9 @@ int main(int argc, char** argv) {
             } else if (circles[i].posX >= SCREEN_WIDTH/2.0 && circles[i].posY >= SCREEN_HEIGHT/2.0) {
                 circles[i].velX = 0;
                 circles[i].velY = -maxSpeed;//random_double(-0.001, -maxSpeed);
-            }*/
-            circles[i].velX = random_double(-maxSpeed, maxSpeed);
-            circles[i].velY = random_double(-maxSpeed, maxSpeed);
+            }
+            //circles[i].velX = random_double(-maxSpeed, maxSpeed);
+            //circles[i].velY = random_double(-maxSpeed, maxSpeed);
             //circles[i].mass = circles[i]->size;
         }
 
@@ -111,8 +114,8 @@ int main(int argc, char** argv) {
     MPI_Bcast(processes, numProcesses * sizeof(struct Process), MPI_BYTE, 0, MPI_COMM_WORLD);
     setupQuadtree(processes[rank].posX, processes[rank].posY, processes[rank].width, processes[rank].height);
 
-    pthread_create(&recvThread, NULL, receiveCircle, NULL);
     pthread_create(&sendThread, NULL, sendCircle, NULL);
+    pthread_create(&recvThread, NULL, receiveCircle, NULL);
 
     if (rank == 0) {
         glutInit((int *) &argc, argv);
@@ -156,47 +159,66 @@ void distributeCircles() {
 }
 
 void update() {
-    pthread_mutex_lock(&arrayMutex);
-
     updateTree();
-    updateCirclesFromTree();
 
-    pthread_mutex_unlock(&arrayMutex);
-
-    MPI_Barrier(MPI_COMM_WORLD);
-
-    if (rank != 0) {
-        MPI_Send(&numCircles, 1, MPI_INT, 0, tag_numCircles, MPI_COMM_WORLD);
-        MPI_Request request;
-        MPI_Status status;
-        MPI_Isend(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD, &request);
-        MPI_Wait(&request, &status);
-    } else {
-        processes[0].numCircles = numCircles;
-        processes[0].circles = circles;
-
-        for (int i = 1; i < numProcesses; i++) {
-            MPI_Recv(&processes[i].numCircles, 1, MPI_INT, i, tag_numCircles, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        }
-
-        MPI_Request* requests = malloc((numProcesses - 1) * sizeof(MPI_Request));
-        MPI_Status* statuses = malloc((numProcesses - 1) * sizeof(MPI_Status));
-
-        for (int i = 1; i < numProcesses; i++) {
-            processes[i].circles = (struct Circle*) realloc(processes[i].circles, processes[i].numCircles * sizeof(struct Circle));
-            MPI_Irecv(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i, tag_circles, MPI_COMM_WORLD, &requests[i-1]);
-        }
-
-        MPI_Waitall(numProcesses - 1, requests, statuses);
+    if (iterations % moduloIteration == 0) {
+        updateCirclesFromTree();
+        MPI_Barrier(MPI_COMM_WORLD);
     }
 
-    frames++;
+
+    if (iterations % moduloIteration == 0) {
+        if (rank != 0) {
+            MPI_Request request1;
+            MPI_Status status1;
+            MPI_Isend(&numCircles, 1, MPI_INT, 0, tag_numCircles, MPI_COMM_WORLD, &request1);
+            MPI_Wait(&request1, &status1);
+            MPI_Request request2;
+            MPI_Status status2;
+            MPI_Isend(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD, &request2);
+            MPI_Wait(&request2, &status2);
+        } else {
+            processes[0].numCircles = numCircles;
+            processes[0].circles = circles;
+
+            MPI_Request *requests1 = malloc((numProcesses - 1) * sizeof(MPI_Request));
+            MPI_Status *statuses1 = malloc((numProcesses - 1) * sizeof(MPI_Status));
+
+            for (int i = 1; i < numProcesses; i++) {
+                MPI_Irecv(&processes[i].numCircles, 1, MPI_INT, i, tag_numCircles, MPI_COMM_WORLD, &requests1[i - 1]);
+            }
+
+            MPI_Waitall(numProcesses - 1, requests1, statuses1);
+
+            free(requests1);
+            free(statuses1);
+
+            MPI_Request *requests2 = malloc((numProcesses - 1) * sizeof(MPI_Request));
+            MPI_Status *statuses2 = malloc((numProcesses - 1) * sizeof(MPI_Status));
+
+            for (int i = 1; i < numProcesses; i++) {
+                processes[i].circles = (struct Circle *) realloc(processes[i].circles,
+                                                                 processes[i].numCircles * sizeof(struct Circle));
+                MPI_Irecv(processes[i].circles, processes[i].numCircles * sizeof(struct Circle), MPI_BYTE, i,
+                          tag_circles, MPI_COMM_WORLD, &requests2[i - 1]);
+            }
+
+            MPI_Waitall(numProcesses - 1, requests2, statuses2);
+
+            free(requests2);
+            free(statuses2);
+        }
+    }
+
+    iterations++;
     clock_t end = clock();
     double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
     if (time_spent >= 10) {
         //printf("%d frames for 10 seconds\n", frames);
-        printf("%f FPS\n", frames / 10.0);
+        if (rank == 0)
+            printf("%f FPS\n", frames / 10.0);
         frames = 0;
+        iterations = 0;
         begin = end;
         //MPI_Finalize();
         //exit(0);
@@ -204,7 +226,12 @@ void update() {
     }
 
     if (rank == 0) {
-        glutPostRedisplay();
+        if (iterations % moduloIteration == 0) {
+            glutPostRedisplay();
+            frames++;
+        }
+        if (iterations % 100)
+            printTree(rootCell, 0);
         glutTimerFunc(0, update, 0);
     }
 }
@@ -217,8 +244,8 @@ void display() {
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     //glPointSize(circleSize);
-    glLineWidth(3);
-    glColor3f(255, 0, 0);
+    //glLineWidth(3);
+    //glColor3f(255, 0, 0);
 
     /*for (int i = 0; i < numProcesses; i++) {
         glLineWidth(1);
