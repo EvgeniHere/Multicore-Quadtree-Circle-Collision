@@ -168,9 +168,10 @@ bool addCircleToCell(struct Circle* circle, struct Cell* cell) {
                     struct Cell* subcell = &cell->subcells[i];
                     if (!isCircleOverlappingCellArea(circle, subcell))
                         continue;
-                    cell->numCirclesInCell++;
-                    return addCircleToCell(circle, subcell);
+                    addCircleToCell(circle, subcell);
                 }
+                cell->numCirclesInCell++;
+                return false;
             } else {
                 cell->circles = (struct Circle *) realloc(cell->circles, (cell->numCirclesInCell + 1) * sizeof(struct Circle));
                 if (cell->circles == NULL) {
@@ -218,8 +219,9 @@ void updateCell(struct Cell* cell) {
     for (int i = 0; i < 4; i++) {
         updateCell(&cell->subcells[i]);
     }
-    if (cell->numCirclesInCell <= maxCirclesPerCell)
+    if (cell->numCirclesInCell <= maxCirclesPerCell) {
         collapse(cell, cell);
+    }
 }
 
 void sendToDifferentProcess(struct Circle* circle) {
@@ -230,21 +232,20 @@ void sendToDifferentProcess(struct Circle* circle) {
         }
     }
 
+    pthread_mutex_lock(&outgoingMutex);
     for (int i = 0; i < numOutgoing; i++) {
         if (outgoingCircles[i].id == circle->id) {
             return;
         }
     }
-
     outgoingCircles[numOutgoing++] = *circle;
+    pthread_mutex_unlock(&outgoingMutex);
 }
 
 void addCircleToParentCell(struct Circle* circle, struct Cell* cell) {
     if (cell == rootCell) {
         if (!isCircleFullInsideCellArea(circle, rootCell)) {
-            pthread_mutex_lock(&outgoingMutex);
             sendToDifferentProcess(circle);
-            pthread_mutex_unlock(&outgoingMutex);
         }
         return;
     }

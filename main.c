@@ -44,16 +44,16 @@ int main(int argc, char** argv) {
     }
 
     numProcesses = size;
-    numCircles = 100000;
+    numCircles = 100;
     circleSize = 1.0;
     maxSpeed = 1.0;
-    maxCirclesPerCell = 100;
+    maxCirclesPerCell = 5;
     minCellSize = 4 * circleSize + 4 * maxSpeed;
     friction = 0.999;
     gravity = 0.000001;
     circle_max_X = SCREEN_WIDTH;
-    circle_max_y = SCREEN_HEIGHT;
-    moduloIteration = 5;
+    circle_max_Y = SCREEN_HEIGHT;
+    moduloIteration = 1;
 
     startNumCircles = numCircles;
     maxOutgoing = 1000;
@@ -161,11 +161,13 @@ void distributeCircles() {
 void update() {
     updateTree();
 
+    if (iterations % 1000 == 0)
+        printTree(rootCell, 0);
+
     if (iterations % moduloIteration == 0) {
         updateCirclesFromTree();
         MPI_Barrier(MPI_COMM_WORLD);
     }
-
 
     if (iterations % moduloIteration == 0) {
         if (rank != 0) {
@@ -230,8 +232,6 @@ void update() {
             glutPostRedisplay();
             frames++;
         }
-        if (iterations % 100)
-            printTree(rootCell, 0);
         glutTimerFunc(0, update, 0);
     }
 }
