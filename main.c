@@ -165,8 +165,6 @@ void update() {
             MPI_Isend(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD, &request);
             //MPI_Wait(&request, &status);
         } else {
-            processes[0].numCells = numCells;
-            processes[0].rects = leaf_rects;
             processes[0].circles = circles;
 
             for (int i = 0; i < numProcesses; i++) {
