@@ -158,35 +158,47 @@ int main(int argc, char** argv) {
 void update() {
     updateTree();
 
-    updateVisualsFromTree();
+    if (frames % 4 == 0)
+        updateVisualsFromTree();
 
     if (size > 1) {
         if (rank != 0) {
-            MPI_Send(&numCells, 1, MPI_INT, 0, tag_numCells, MPI_COMM_WORLD);
-            MPI_Send(leaf_rects, numCells * sizeof(struct Rectangle), MPI_BYTE, 0, tag_cells, MPI_COMM_WORLD);
-            MPI_Send(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD);
+            MPI_Request *requests = malloc((3) * sizeof(MPI_Request));
+            MPI_Status *statuses = malloc((3) * sizeof(MPI_Status));
+            MPI_Isend(&numCells, 1, MPI_INT, 0, tag_numCells, MPI_COMM_WORLD, &requests[0]);
+            MPI_Isend(leaf_rects, numCells * sizeof(struct Rectangle), MPI_BYTE, 0, tag_cells, MPI_COMM_WORLD, &requests[1]);
+            MPI_Isend(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD, &requests[2]);
+            MPI_Waitall(3, requests, statuses);
+            free(requests);
+            free(statuses);
         } else {
             processes[0].numCells = numCells;
             processes[0].rects = leaf_rects;
             processes[0].circles = circles;
+
             for (int i = 0; i < numProcesses; i++) {
+                int source = 0;
                 if (i > 0) {
-                    MPI_Recv(&processes[i].numCells, 1, MPI_INT, i, tag_numCells, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                    processes[i].rects = (struct Rectangle *) realloc(processes[i].rects,
-                                                                      processes[i].numCells * sizeof(struct Rectangle));
-                    MPI_Recv(processes[i].rects, processes[i].numCells * sizeof(struct Rectangle), MPI_BYTE, i,
-                             tag_cells, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                    MPI_Recv(processes[i].circles, numCircles * sizeof(struct Circle), MPI_BYTE, i, tag_circles,
-                             MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    MPI_Request request1, request2, request3;
+                    MPI_Status status1, status2, status3;
+                    int num = 0;
+                    MPI_Irecv(&num, 1, MPI_INT, MPI_ANY_SOURCE, tag_numCells, MPI_COMM_WORLD, &request1);
+                    MPI_Wait(&request1, &status1);
+                    source = status1.MPI_SOURCE;
+                    processes[source].numCells = num;
+                    MPI_Irecv(processes[source].circles, numCircles * sizeof(struct Circle), MPI_BYTE, source,tag_circles, MPI_COMM_WORLD, &request2);
+                    processes[source].rects = (struct Rectangle *) realloc(processes[source].rects,processes[source].numCells * sizeof(struct Rectangle));
+                    MPI_Irecv(processes[source].rects, processes[source].numCells * sizeof(struct Rectangle), MPI_BYTE, source, tag_cells, MPI_COMM_WORLD, &request3);
+                    MPI_Wait(&request2, &status2);
+                    MPI_Wait(&request3, &status3);
                 }
                 for (int j = 0; j < numCircles; j++) {
-                    if (processes[i].circle_inside[j])
-                        circles[j] = processes[i].circles[j];
-                    processes[i].circle_inside[j] = isCircleOverlappingArea(&circles[j], processes[i].posX,
-                                                                            processes[i].posY, processes[i].width,
-                                                                            processes[i].height);
+                    if (processes[source].circle_inside[j])
+                        circles[j] = processes[source].circles[j];
+                    processes[source].circle_inside[j] = isCircleOverlappingArea(&circles[j], processes[source].posX, processes[source].posY, processes[source].width, processes[source].height);
                 }
             }
+
             circle_inside = processes[0].circle_inside;
         }
 
@@ -207,7 +219,8 @@ void update() {
             //printTree(rootCell, 0);
         }
         glutTimerFunc(0, update, 0);
-        glutPostRedisplay();
+        if (frames % 4 == 0)
+            glutPostRedisplay();
     }
 }
 
