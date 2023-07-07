@@ -158,44 +158,29 @@ int main(int argc, char** argv) {
 void update() {
     updateTree();
 
-    if (frames % 4 == 0)
-        updateVisualsFromTree();
-
     if (size > 1) {
         if (rank != 0) {
-            MPI_Request *requests = malloc((3) * sizeof(MPI_Request));
-            MPI_Status *statuses = malloc((3) * sizeof(MPI_Status));
-            MPI_Isend(&numCells, 1, MPI_INT, 0, tag_numCells, MPI_COMM_WORLD, &requests[0]);
-            MPI_Isend(leaf_rects, numCells * sizeof(struct Rectangle), MPI_BYTE, 0, tag_cells, MPI_COMM_WORLD, &requests[1]);
-            MPI_Isend(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD, &requests[2]);
-            MPI_Waitall(3, requests, statuses);
-            free(requests);
-            free(statuses);
+            MPI_Request request;
+            MPI_Status status;
+            MPI_Isend(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD, &request);
+            MPI_Wait(&request, &status);
         } else {
             processes[0].numCells = numCells;
             processes[0].rects = leaf_rects;
             processes[0].circles = circles;
 
             for (int i = 0; i < numProcesses; i++) {
-                int source = 0;
                 if (i > 0) {
-                    MPI_Request request1, request2, request3;
-                    MPI_Status status1, status2, status3;
-                    int num = 0;
-                    MPI_Irecv(&num, 1, MPI_INT, MPI_ANY_SOURCE, tag_numCells, MPI_COMM_WORLD, &request1);
-                    MPI_Wait(&request1, &status1);
-                    source = status1.MPI_SOURCE;
-                    processes[source].numCells = num;
-                    MPI_Irecv(processes[source].circles, numCircles * sizeof(struct Circle), MPI_BYTE, source,tag_circles, MPI_COMM_WORLD, &request2);
-                    processes[source].rects = (struct Rectangle *) realloc(processes[source].rects,processes[source].numCells * sizeof(struct Rectangle));
-                    MPI_Irecv(processes[source].rects, processes[source].numCells * sizeof(struct Rectangle), MPI_BYTE, source, tag_cells, MPI_COMM_WORLD, &request3);
-                    MPI_Wait(&request2, &status2);
-                    MPI_Wait(&request3, &status3);
+                    MPI_Request request;
+                    MPI_Status status;
+                    MPI_Irecv(processes[i].circles, numCircles * sizeof(struct Circle), MPI_BYTE, i,
+                              tag_circles, MPI_COMM_WORLD, &request);
+                    MPI_Wait(&request, &status);
                 }
                 for (int j = 0; j < numCircles; j++) {
-                    if (processes[source].circle_inside[j])
-                        circles[j] = processes[source].circles[j];
-                    processes[source].circle_inside[j] = isCircleOverlappingArea(&circles[j], processes[source].posX, processes[source].posY, processes[source].width, processes[source].height);
+                    if (processes[i].circle_inside[j])
+                        circles[j] = processes[i].circles[j];
+                    processes[i].circle_inside[j] = isCircleOverlappingArea(&circles[j], processes[i].posX, processes[i].posY, processes[i].width, processes[i].height);
                 }
             }
 
@@ -205,8 +190,8 @@ void update() {
         MPI_Bcast(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, MPI_COMM_WORLD);
     }
 
+    frames++;
     if (rank == 0) {
-        frames++;
         clock_t end = clock();
         double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
         if (time_spent >= 10) {
@@ -219,7 +204,7 @@ void update() {
             //printTree(rootCell, 0);
         }
         glutTimerFunc(0, update, 0);
-        if (frames % 4 == 0)
+        if (frames % 2 == 0)
             glutPostRedisplay();
     }
 }
@@ -258,7 +243,7 @@ void display() {
     glColor3f(255, 255, 255);
     for (int i = 0; i < numCircles; i++) {
         drawCircle(circles[i].posX, circles[i].posY);
-        i += (int) random_double(1.0, 4.0);
+        i += (int) random_double(1.0, 3.0);
     }
 
     glutSwapBuffers();
