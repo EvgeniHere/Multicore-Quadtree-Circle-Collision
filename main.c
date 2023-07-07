@@ -158,43 +158,40 @@ int main(int argc, char** argv) {
 void update() {
     updateTree();
 
-    updateVisualsFromTree();
-
     if (size > 1) {
         if (rank != 0) {
-            MPI_Send(&numCells, 1, MPI_INT, 0, tag_numCells, MPI_COMM_WORLD);
-            MPI_Send(leaf_rects, numCells * sizeof(struct Rectangle), MPI_BYTE, 0, tag_cells, MPI_COMM_WORLD);
-            MPI_Send(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD);
+            MPI_Request request;
+            MPI_Status status;
+            MPI_Isend(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD, &request);
+            //MPI_Wait(&request, &status);
         } else {
             processes[0].numCells = numCells;
             processes[0].rects = leaf_rects;
             processes[0].circles = circles;
+
             for (int i = 0; i < numProcesses; i++) {
                 if (i > 0) {
-                    MPI_Recv(&processes[i].numCells, 1, MPI_INT, i, tag_numCells, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                    processes[i].rects = (struct Rectangle *) realloc(processes[i].rects,
-                                                                      processes[i].numCells * sizeof(struct Rectangle));
-                    MPI_Recv(processes[i].rects, processes[i].numCells * sizeof(struct Rectangle), MPI_BYTE, i,
-                             tag_cells, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                    MPI_Recv(processes[i].circles, numCircles * sizeof(struct Circle), MPI_BYTE, i, tag_circles,
-                             MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    MPI_Request request;
+                    MPI_Status status;
+                    MPI_Irecv(processes[i].circles, numCircles * sizeof(struct Circle), MPI_BYTE, i,
+                              tag_circles, MPI_COMM_WORLD, &request);
+                    MPI_Wait(&request, &status);
                 }
                 for (int j = 0; j < numCircles; j++) {
                     if (processes[i].circle_inside[j])
                         circles[j] = processes[i].circles[j];
-                    processes[i].circle_inside[j] = isCircleOverlappingArea(&circles[j], processes[i].posX,
-                                                                            processes[i].posY, processes[i].width,
-                                                                            processes[i].height);
+                    processes[i].circle_inside[j] = isCircleOverlappingArea(&circles[j], processes[i].posX, processes[i].posY, processes[i].width, processes[i].height);
                 }
             }
+
             circle_inside = processes[0].circle_inside;
         }
 
         MPI_Bcast(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, MPI_COMM_WORLD);
     }
 
+    frames++;
     if (rank == 0) {
-        frames++;
         clock_t end = clock();
         double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
         if (time_spent >= 10) {
