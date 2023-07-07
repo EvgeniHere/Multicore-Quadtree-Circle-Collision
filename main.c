@@ -9,17 +9,8 @@
 #include <errno.h>
 #include <time.h>
 
-int tag_circles = 1;
-int tag_numCircles = 2;
-int tag_process = 3;
-int tag_numCells = 4;
-int tag_cells = 5;
-int tag_circle_inside = 6;
-
 int frames = 0;
 clock_t begin;
-
-int rank, size;
 
 int numProcesses;
 
@@ -29,17 +20,6 @@ void display();
 void drawCircle(GLfloat centerX, GLfloat centerY);
 void initOpenGL(int* argc, char** argv);
 void distributeCircles();
-
-struct Process {
-    int posX;
-    int posY;
-    int width;
-    int height;
-    int numCells;
-    bool* circle_inside;
-    struct Circle* circles;
-    struct Rectangle* rects;
-};
 
 struct Process* processes;
 struct Process* curProcess;
