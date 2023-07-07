@@ -4,6 +4,7 @@
 #define SCREEN_HEIGHT 1000
 
 struct Circle {
+    int id;
     double posX;
     double posY;
     double velX;
