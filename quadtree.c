@@ -33,7 +33,6 @@ struct Process {
     int numCells;
     struct Circle* circles;
     struct Rectangle* rects;
-    bool* circle_inside;
 };
 
 int numProcesses;
@@ -60,6 +59,8 @@ pthread_mutex_t ingoingMutex;
 
 int rank, size;
 
+int numCirclesInside = 0;
+
 int* outgoingCircles;
 struct Circle* ingoingCircles;
 int numOutgoing = 0;
@@ -81,8 +82,9 @@ bool deleteCircle(struct Cell* cell, int circle_id);
 void checkCollisions(struct Cell* cell);
 bool cellContainsCircle(struct Cell* cell, int circle_id);
 bool isCircleFullInsideCellArea(int circle_id, struct Cell* cell);
-bool isCircleOverlappingCellArea(int circle_id, struct Cell* cell);
+bool isCircleIDOverlappingCellArea(int circle_id, struct Cell* cell);
 bool isCircleCloseToCellArea(int circle_id, struct Cell* cell);
+bool isCircleOverlappingCellArea(struct Circle* circle, struct Cell* cell);
 void printTree(struct Cell* cell, int depth);
 double random_double(double min, double max);
 void sendToDifferentProcess(int circle_id);
@@ -108,14 +110,17 @@ void setupQuadtree(double rootCellX, double rootCellY, double rootCellWidth, dou
     }
     rootCell->subcells = NULL;
 
-    leaf_rects = (struct Rectangle*)malloc(100 * sizeof(struct Rectangle));
+    //leaf_rects = (struct Rectangle*)malloc(100 * sizeof(struct Rectangle));
     ingoingCircles = (struct Circle*)malloc(maxIngoing * sizeof(struct Circle));
     outgoingCircles = (int*)malloc(maxOutgoing * sizeof(int));
+    circle_inside = (bool *) malloc(sizeof(bool) * numCircles);
 
     for (int i = 0; i < numCircles; i++) {
-        circle_inside[i] = isCircleOverlappingCellArea(i, rootCell);
-        if (circle_inside[i])
-            addCircleToCell(i, rootCell);
+        circle_inside[i] = isCircleIDOverlappingCellArea(i, rootCell);
+        if (!circle_inside[i])
+            continue;
+        addCircleToCell(i, rootCell);
+        numCirclesInside++;
     }
     updateCell(rootCell);
 }
@@ -157,7 +162,7 @@ void updateCell(struct Cell* cell) {
             int circle_id = cell->circle_ids[i];
             if (isCircleFullInsideCellArea(circle_id, cell))
                 continue;
-            if (!isCircleOverlappingCellArea(circle_id, cell)) {
+            if (!isCircleIDOverlappingCellArea(circle_id, cell)) {
                 deleteCircle(rootCell, circle_id);
                 i--;
             }
@@ -174,12 +179,21 @@ void updateCell(struct Cell* cell) {
 }
 
 void updateTree() {
-    for (int i = 0; i < numCircles; i++) {
-        if (isCircleOverlappingCellArea(i, rootCell)) {
-            if (!circle_inside[i]) {
-                addCircleToCell(i, rootCell);
-                circle_inside[i] = true;
+    if (numIngoing > 0) {
+        pthread_mutex_lock(&ingoingMutex);
+        for (int i = 0; i < numIngoing; i++) {
+            circles[ingoingCircles[i].id] = ingoingCircles[i];
+            addCircleToCell(ingoingCircles[i].id, rootCell);
+            if (!circle_inside[ingoingCircles[i].id]) {
+                circle_inside[ingoingCircles[i].id] = true;
+                numCirclesInside++;
             }
+        }
+        numIngoing = 0;
+        pthread_mutex_unlock(&ingoingMutex);
+    }
+    for (int i = 0; i < numCircles; i++) {
+        if (circle_inside[i]) {
             move(&circles[i]);
         }
         //deleteCircle(rootCell, i);
@@ -198,7 +212,7 @@ bool addCircleToCell(int circle_id, struct Cell* cell) {
                 split(cell);
                 for (int i = 0; i < 4; i++) {
                     struct Cell* subcell = &cell->subcells[i];
-                    if (!isCircleOverlappingCellArea(circle_id, subcell))
+                    if (!isCircleIDOverlappingCellArea(circle_id, subcell))
                         continue;
                     addCircleToCell(circle_id, subcell);
                 }
@@ -219,7 +233,7 @@ bool addCircleToCell(int circle_id, struct Cell* cell) {
     bool alreadyInsideCell = false;
     for (int i = 0; i < 4; i++) {
         struct Cell* subcell = &cell->subcells[i];
-        if (!isCircleOverlappingCellArea(circle_id, subcell))
+        if (!isCircleIDOverlappingCellArea(circle_id, subcell))
             continue;
         if (addCircleToCell(circle_id, subcell))
             alreadyInsideCell = true;
@@ -254,17 +268,20 @@ void sendToDifferentProcess(int circle_id) {
 
 void addCircleToParentCell(int circle_id, struct Cell* cell) {
     if (cell == rootCell) {
-        circle_inside[circle_id] = false;
-        sendToDifferentProcess(circle_id);
+        if (!isCircleOverlappingCellArea(&circles[circle_id], cell)) { // CHANGED THIS IF (REMOVE IF NECESSARY!!)
+            circle_inside[circle_id] = false;
+            numCirclesInside--;
+            sendToDifferentProcess(circle_id);
+        }
         return;
     }
 
     struct Cell* parentCell = cell->parentCell;
 
-    if (isCircleOverlappingCellArea(circle_id, parentCell)) {
+    if (isCircleIDOverlappingCellArea(circle_id, parentCell)) {
         for (int i = 0; i < 4; i++) {
             struct Cell* neighbourCell = &parentCell->subcells[i];
-            if (neighbourCell == cell || !isCircleOverlappingCellArea(circle_id, neighbourCell))
+            if (neighbourCell == cell || !isCircleIDOverlappingCellArea(circle_id, neighbourCell))
                 continue;
             addCircleToCell(circle_id, neighbourCell);
         }
@@ -308,7 +325,7 @@ void split(struct Cell* cell) {
         int circle_id = cell->circle_ids[i];
         for (int j = 0; j < 4; j++) {
             struct Cell* subcell = &cell->subcells[j];
-            if (!isCircleOverlappingCellArea(circle_id, subcell))
+            if (!isCircleIDOverlappingCellArea(circle_id, subcell))
                 continue;
             addCircleToCell(circle_id, subcell);
         }
@@ -336,7 +353,7 @@ void collapse(struct Cell* cell, struct Cell* originCell) {
     } else if (cell->circle_ids != NULL) {
         for (int i = 0; i < cell->numCirclesInCell; i++) {
             int circle_id = cell->circle_ids[i];
-            if (!isCircleOverlappingCellArea(circle_id, originCell) || cellContainsCircle(originCell, circle_id))
+            if (!isCircleIDOverlappingCellArea(circle_id, originCell) || cellContainsCircle(originCell, circle_id))
                 continue;
             if (originCell->numCirclesInCell > maxCirclesPerCell) {
                 printf("WTF!\n");
@@ -359,7 +376,7 @@ void collapse(struct Cell* cell, struct Cell* originCell) {
 
 bool deleteCircle(struct Cell* cell, int circle_id) {
     if (cell->circle_ids != NULL) {
-        if (isCircleOverlappingCellArea(circle_id, cell))
+        if (isCircleIDOverlappingCellArea(circle_id, cell))
             return false;
         for (int i = 0; i < cell->numCirclesInCell; i++) {
             if (cell->circle_ids[i] != circle_id)
@@ -377,7 +394,7 @@ bool deleteCircle(struct Cell* cell, int circle_id) {
                 if (deleteCircle(&cell->subcells[i], circle_id))
                     deleted = true;
             }
-            if (deleted && !isCircleOverlappingCellArea(circle_id, cell)) {
+            if (deleted && !isCircleIDOverlappingCellArea(circle_id, cell)) {
                 cell->numCirclesInCell--;
                 return true;
             }
@@ -460,7 +477,7 @@ bool isCircleFullInsideCellArea(int circle_id, struct Cell* cell) {
     return circles[circle_id].posX - circleSize / 2.0 >= cell->posX && circles[circle_id].posX + circleSize / 2.0 <= cell->posX + cell->cellWidth && circles[circle_id].posY - circleSize / 2.0 >= cell->posY && circles[circle_id].posY + circleSize / 2.0 <= cell->posY + cell->cellHeight;
 }
 
-bool isCircleOverlappingCellArea(int circle_id, struct Cell* cell) {
+bool isCircleIDOverlappingCellArea(int circle_id, struct Cell* cell) {
     return circles[circle_id].posX + circleSize / 2.0 > cell->posX && circles[circle_id].posX - circleSize / 2.0 < cell->posX + cell->cellWidth && circles[circle_id].posY + circleSize / 2.0 > cell->posY && circles[circle_id].posY - circleSize / 2.0 < cell->posY + cell->cellHeight;
 }
 
@@ -470,6 +487,10 @@ bool isCircleCloseToCellArea(int circle_id, struct Cell* cell) {
 
 bool isCircleOverlappingArea(struct Circle* circle, double posX, double posY, double width, double height) {
     return circle->posX + circleSize / 2.0 > posX && circle->posX - circleSize / 2.0 < posX + width && circle->posY + circleSize / 2.0 > posY && circle->posY - circleSize / 2.0 < posY + height;
+}
+
+bool isCircleOverlappingCellArea(struct Circle* circle, struct Cell* cell) {
+    return circle->posX + circleSize / 2.0 >= cell->posX && circle->posX - circleSize / 2.0 <= cell->posX + cell->cellWidth && circle->posY + circleSize / 2.0 >= cell->posY && circle->posY - circleSize / 2.0 <= cell->posY + cell->cellHeight;
 }
 
 void printTree(struct Cell* cell, int depth) {
@@ -516,8 +537,9 @@ void* receiveCircle(void* arg) {
                 break;
             }
         }
-        if (!alreadyInside)
+        if (!alreadyInside && !circle_inside[circle->id]) {
             ingoingCircles[numIngoing++] = *circle;
+        }
         pthread_mutex_unlock(&ingoingMutex);
     }
 
@@ -532,9 +554,9 @@ void* sendCircle(void* arg) {
         while (numOutgoing == 0) {
             usleep(5000);
         }
-        oldNumOutgoing = numOutgoing;
 
         pthread_mutex_lock(&outgoingMutex);
+        oldNumOutgoing = numOutgoing;
 
         MPI_Request* requests = malloc(numOutgoing * sizeof(MPI_Request));
         MPI_Status* statuses = malloc(numOutgoing * sizeof(MPI_Status));
@@ -544,16 +566,19 @@ void* sendCircle(void* arg) {
             for (int j = 0; j < numProcesses; j++) {
                 if (j == rank)
                     continue;
-                if (!isCircleOverlappingArea(&outgoingCircles[i], processes[j].posX, processes[j].posY, processes[j].width, processes[j].height))
+                if (!isCircleOverlappingArea(&circles[outgoingCircles[i]], processes[j].posX, processes[j].posY, processes[j].width, processes[j].height))
                     continue;
-                MPI_Isend(&outgoingCircles[i], sizeof(struct Circle), MPI_BYTE, j, tag_circle, MPI_COMM_WORLD, &requests[i]);
+                MPI_Isend(&circles[outgoingCircles[i]], sizeof(struct Circle), MPI_BYTE, j, tag_circle, MPI_COMM_WORLD, &requests[i]);
                 num++;
                 break;
             }
         }
 
-        if (numOutgoing != num)
-            printf("%d %d\n", numOutgoing, num);
+        // VIELLEICHT BESSER FÜR JEDEN PROZESS EIN ARRAY DANN GANZEN ARRAY ABSCHICKEN?
+
+        if (numOutgoing != num) {
+            printf("%d WRONG NUMBER %d %d\n", outgoingCircles[0], numOutgoing, num);
+        }
 
         numOutgoing = 0;
         pthread_mutex_unlock(&outgoingMutex);
@@ -565,4 +590,3 @@ void* sendCircle(void* arg) {
     }
     return NULL;
 }
-
