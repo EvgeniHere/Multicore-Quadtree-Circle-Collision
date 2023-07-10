@@ -5,26 +5,28 @@
 #include <pthread.h>
 #include <unistd.h>
 #include "circle.c"
+#include "hashset.c"
 
-struct Rectangle {
+typedef struct Rectangle {
     double posX;
     double posY;
     double width;
     double height;
-};
+} Rectangle;
 
-struct Cell {
+typedef struct Cell {
     double posX;
     double posY;
     double cellWidth;
     double cellHeight;
     int numCirclesInCell;
+    Hashset* circles;
     int* circle_ids;
     struct Cell* subcells;
     struct Cell* parentCell;
-};
+} Cell;
 
-struct Process {
+typedef struct Process {
     int posX;
     int posY;
     int width;
@@ -33,7 +35,7 @@ struct Process {
     int numCells;
     struct Circle* circles;
     struct Rectangle* rects;
-};
+} Process;
 
 int numProcesses;
 int numCircles;
@@ -104,6 +106,7 @@ void setupQuadtree(double rootCellX, double rootCellY, double rootCellWidth, dou
     rootCell->numCirclesInCell = 0;
     rootCell->parentCell = NULL;
     rootCell->circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
+    rootCell->circles = initializeHashSet();
     if (rootCell->circle_ids == NULL) {
         printf("Memory error!");
         exit(1);
@@ -227,6 +230,7 @@ bool addCircleToCell(int circle_id, struct Cell* cell) {
             }
         }
         cell->circle_ids[cell->numCirclesInCell++] = circle_id;
+        insert(cell->circles, circle_id);
         return false;
     }
 
@@ -315,6 +319,7 @@ void split(struct Cell* cell) {
         cell->subcells[i].parentCell = cell;
         cell->subcells[i].subcells = NULL;
         cell->subcells[i].circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
+        cell->subcells[i].circles = initializeHashSet();
         if (cell->subcells[i].circle_ids == NULL) {
             printf("Memory error!");
             exit(1);
@@ -333,6 +338,8 @@ void split(struct Cell* cell) {
 
     free(cell->circle_ids);
     cell->circle_ids = NULL;
+    destroyHashset(cell->circles);
+    cell->circles = NULL;
 }
 
 void collapse(struct Cell* cell, struct Cell* originCell) {
@@ -346,6 +353,7 @@ void collapse(struct Cell* cell, struct Cell* originCell) {
         }
         cell->numCirclesInCell = 0;
         cell->circle_ids = (int *) malloc(maxCirclesPerCell * sizeof(int));
+        cell->circles = initializeHashSet();
         if (cell->circle_ids == NULL) {
             printf("Error: Failed to allocate memory for circle ids in cell.\n");
             exit(1);
@@ -360,10 +368,13 @@ void collapse(struct Cell* cell, struct Cell* originCell) {
                 return;
             } else {
                 originCell->circle_ids[originCell->numCirclesInCell++] = circle_id;
+                insert(originCell->circles, circle_id);
             }
         }
         free(cell->circle_ids);
         cell->circle_ids = NULL;
+        destroyHashset(cell->circles);
+        cell->circles = NULL;
         return;
     }
     for (int i = 0; i < 4; i++) {
@@ -378,6 +389,8 @@ bool deleteCircle(struct Cell* cell, int circle_id) {
     if (cell->circle_ids != NULL) {
         if (isCircleIDOverlappingCellArea(circle_id, cell))
             return false;
+        if (!cellContainsCircle(cell, circle_id))
+            return false;
         for (int i = 0; i < cell->numCirclesInCell; i++) {
             if (cell->circle_ids[i] != circle_id)
                 continue;
@@ -385,6 +398,7 @@ bool deleteCircle(struct Cell* cell, int circle_id) {
                 cell->circle_ids[j] = cell->circle_ids[j + 1];
             }
             cell->numCirclesInCell--;
+            removeValue(cell->circles, circle_id);
             return true;
         }
     } else {
@@ -459,10 +473,8 @@ void checkCollisions(struct Cell* cell) {
 }
 
 bool cellContainsCircle(struct Cell* cell, int circle_id) {
-    if (cell->circle_ids != NULL) {
-        for (int i = 0; i < cell->numCirclesInCell; i++)
-            if (circle_id == cell->circle_ids[i])
-                return true;
+    if (cell->circles != NULL) {
+        return contains(cell->circles, circle_id);
     } else {
         for (int i = 0; i < 4; i++) {
             if (isCircleCloseToCellArea(circle_id, &cell->subcells[i]))
