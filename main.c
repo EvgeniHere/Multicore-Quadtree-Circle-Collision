@@ -44,11 +44,11 @@ int main(int argc, char** argv) {
     }
 
     numProcesses = size;
-    numCircles = 100;
-    circleSize = 30.0;
+    numCircles = 100000;
+    circleSize = 1.0;
     maxSpeed = 1.0;
-    maxCirclesPerCell = 10;
-    minCellSize = 4 * circleSize + 4 * maxSpeed;
+    maxCirclesPerCell = 100;
+    minCellSize = 4 * circleSize;
     friction = 0.999;
     gravity = 0.000001;
     circle_max_X = SCREEN_WIDTH;
@@ -184,18 +184,18 @@ void update() {
 
             MPI_Isend(&numCircles, 1, MPI_INT, 0, tag_numCircles, MPI_COMM_WORLD, &request1);
             MPI_Isend(circles, numCircles * sizeof(struct Circle), MPI_BYTE, 0, tag_circles, MPI_COMM_WORLD, &request2);
-            MPI_Isend(&numRects, 1, MPI_INT, 0, tag_numCells, MPI_COMM_WORLD, &request3);
-            MPI_Isend(rects, numRects * sizeof(struct Rectangle), MPI_BYTE, 0, tag_cells, MPI_COMM_WORLD, &request4);
+            //MPI_Isend(&numRects, 1, MPI_INT, 0, tag_numCells, MPI_COMM_WORLD, &request3);
+            //MPI_Isend(rects, numRects * sizeof(struct Rectangle), MPI_BYTE, 0, tag_cells, MPI_COMM_WORLD, &request4);
 
             MPI_Wait(&request1, &status1);
             MPI_Wait(&request2, &status2);
-            MPI_Wait(&request3, &status3);
-            MPI_Wait(&request4, &status4);
+            //MPI_Wait(&request3, &status3);
+            //MPI_Wait(&request4, &status4);
         } else {
             MPI_Request *requests1 = malloc((numProcesses - 1) * sizeof(MPI_Request));
             MPI_Status *statuses1 = malloc((numProcesses - 1) * sizeof(MPI_Status));
-            MPI_Request *requests2 = malloc((numProcesses - 1) * sizeof(MPI_Request));
-            MPI_Status *statuses2 = malloc((numProcesses - 1) * sizeof(MPI_Status));
+            //MPI_Request *requests2 = malloc((numProcesses - 1) * sizeof(MPI_Request));
+            //MPI_Status *statuses2 = malloc((numProcesses - 1) * sizeof(MPI_Status));
             for (int i = 1; i < numProcesses; i++) {
                 int source;
                 MPI_Request request;
@@ -209,7 +209,7 @@ void update() {
                 MPI_Irecv(processes[source].circles, processes[source].numCircles * sizeof(struct Circle), MPI_BYTE, source, tag_circles, MPI_COMM_WORLD, &requests1[source - 1]);
             }
 
-            for (int i = 1; i < numProcesses; i++) {
+            /*for (int i = 1; i < numProcesses; i++) {
                 int source;
                 MPI_Request request;
                 MPI_Status status;
@@ -220,13 +220,13 @@ void update() {
                 processes[source].numCells = num;
                 processes[source].cells = (struct Rectangle*) realloc(processes[source].cells, processes[source].numCells * sizeof(struct Rectangle));
                 MPI_Irecv(processes[source].cells, processes[source].numCells * sizeof(struct Rectangle), MPI_BYTE, source, tag_cells, MPI_COMM_WORLD, &requests2[source - 1]);
-            }
+            }*/
             MPI_Waitall(numProcesses - 1, requests1, statuses1);
             free(requests1);
             free(statuses1);
-            MPI_Waitall(numProcesses - 1, requests2, statuses2);
+            /*MPI_Waitall(numProcesses - 1, requests2, statuses2);
             free(requests2);
-            free(statuses2);
+            free(statuses2);*/
         }
     }
 
@@ -270,7 +270,7 @@ void display() {
     //glLineWidth(3);
     //glColor3f(255, 0, 0);
 
-    for (int i = 0; i < numProcesses; i++) {
+    /*for (int i = 0; i < numProcesses; i++) {
         glLineWidth(1);
         glColor3f(255, 255, 255);
         for (int j = 0; j < processes[i].numCells; j++) {
@@ -290,14 +290,14 @@ void display() {
         glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1 + processes[i].height - 2);
         glVertex2f(processes[i].posX + 1 + processes[i].width - 2, processes[i].posY + 1);
         glEnd();
-    }
+    }*/
 
     glColor3f(255, 255, 255);
     for (int i = 0; i < numProcesses; i++) {
         //printf("%d\n", processes[i].numCircles);
         for (int j = 0; j < processes[i].numCircles; j++) {
             drawCircle(processes[i].circles[j].posX, processes[i].circles[j].posY);
-            //j += (int) random_double(1.0, 8.0);
+            j += (int) random_double(1.0, 8.0);
         }
     }
 

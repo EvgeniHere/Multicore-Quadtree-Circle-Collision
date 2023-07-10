@@ -5,6 +5,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include "circle.c"
+//#include "hashset.c"
 
 struct Rectangle {
     double posX;
@@ -19,6 +20,7 @@ struct Cell {
     double cellWidth;
     double cellHeight;
     int numCirclesInCell;
+    //struct Hashset circles;
     struct Circle* circles;
     struct Cell* subcells;
     struct Cell* parentCell;
@@ -174,10 +176,10 @@ void updateVisualsFromTree() {
     circles = (struct Circle*) realloc(circles, numCircles * sizeof(struct Circle));
     numCircles = 0;
     updateCirclesFromCell(rootCell);
-    numRects = countCells(rootCell);
+    /*numRects = countCells(rootCell);
     rects = (struct Rectangle*) realloc(rects, numRects * sizeof(struct Rectangle));
     numRects = 0;
-    updateRects(rootCell);
+    updateRects(rootCell);*/
 }
 
 void updateTree() {
