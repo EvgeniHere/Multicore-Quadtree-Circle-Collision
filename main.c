@@ -151,7 +151,9 @@ int main(int argc, char** argv) {
 void update() {
     updateTree();
 
-    if (frames % 4 == 0) {
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    if (frames % 1 == 0) {
         int index = 0;
         sendCircles = (struct Circle *) realloc(sendCircles, numCirclesInside * sizeof(struct Circle));
         for (int i = 0; i < numCircles; i++) {
@@ -207,10 +209,10 @@ void update() {
             //exit(0);
             //printTree(rootCell, 0);
         }
-        if (frames % 4 == 0) {
+        if (frames % 1 == 0) {
             glutPostRedisplay();
         }
-        glutTimerFunc(0, update, 0);
+        glutTimerFunc(10, update, 0);
     }
 }
 
