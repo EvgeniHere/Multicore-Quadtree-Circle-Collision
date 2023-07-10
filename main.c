@@ -212,7 +212,7 @@ void update() {
         if (frames % 1 == 0) {
             glutPostRedisplay();
         }
-        glutTimerFunc(10, update, 0);
+        glutTimerFunc(0, update, 0);
     }
 }
 

@@ -28,7 +28,7 @@ Hashset* initializeHashSet() {
 }
 
 // Insert a value into the Hashset
-void insert(Hashset* set, int value) {
+bool insert(Hashset* set, int value) {
     int index = hash(value);
     Node* newNode = (Node*)malloc(sizeof(Node));
     newNode->data = value;
@@ -40,12 +40,13 @@ void insert(Hashset* set, int value) {
         Node* current = set->buckets[index];
         while (current->next != NULL) {
             if (current->data == value) {
-                return; // Value already exists, do not insert again
+                return false; // Value already exists, do not insert again
             }
             current = current->next;
         }
         current->next = newNode;
     }
+    return true;
 }
 
 // Check if a value exists in the Hashset
@@ -64,7 +65,7 @@ bool contains(Hashset* set, int value) {
 }
 
 // Remove a value from the Hashset
-void removeValue(Hashset* set, int value) {
+bool removeValue(Hashset* set, int value) {
     int index = hash(value);
     Node* current = set->buckets[index];
     Node* previous = NULL;
@@ -77,11 +78,12 @@ void removeValue(Hashset* set, int value) {
                 previous->next = current->next;
             }
             free(current);
-            return;
+            return true;
         }
         previous = current;
         current = current->next;
     }
+    return false;
 }
 
 // Free the memory allocated for the Hashset

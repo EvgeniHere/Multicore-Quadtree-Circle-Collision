@@ -21,7 +21,6 @@ typedef struct Cell {
     double cellHeight;
     int numCirclesInCell;
     Hashset* circles;
-    int* circle_ids;
     struct Cell* subcells;
     struct Cell* parentCell;
 } Cell;
@@ -105,12 +104,7 @@ void setupQuadtree(double rootCellX, double rootCellY, double rootCellWidth, dou
     rootCell->cellHeight = rootCellHeight;
     rootCell->numCirclesInCell = 0;
     rootCell->parentCell = NULL;
-    rootCell->circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
     rootCell->circles = initializeHashSet();
-    if (rootCell->circle_ids == NULL) {
-        printf("Memory error!");
-        exit(1);
-    }
     rootCell->subcells = NULL;
 
     //leaf_rects = (struct Rectangle*)malloc(100 * sizeof(struct Rectangle));
@@ -129,7 +123,7 @@ void setupQuadtree(double rootCellX, double rootCellY, double rootCellWidth, dou
 }
 
 int countCells(struct Cell* cell) {
-    if (cell->circle_ids != NULL) {
+    if (cell->circles != NULL) {
         return 1;
     }
     int num = 0;
@@ -140,7 +134,7 @@ int countCells(struct Cell* cell) {
 }
 
 void updateRects(struct Cell* cell) {
-    if (cell->circle_ids != NULL) {
+    if (cell->circles != NULL) {
         leaf_rects[numCells].posX = cell->posX;
         leaf_rects[numCells].posY = cell->posY;
         leaf_rects[numCells].width = cell->cellWidth;
@@ -160,16 +154,20 @@ void updateVisualsFromTree() {
 }
 
 void updateCell(struct Cell* cell) {
-    if (cell->circle_ids != NULL) {
-        for (int i = 0; i < cell->numCirclesInCell; i++) {
-            int circle_id = cell->circle_ids[i];
-            if (isCircleFullInsideCellArea(circle_id, cell))
-                continue;
-            if (!isCircleIDOverlappingCellArea(circle_id, cell)) {
-                deleteCircle(rootCell, circle_id);
-                i--;
+    if (cell->circles != NULL) {
+        for (int i = 0; i < HASHSET_SIZE; i++) {
+            Node* curNode = cell->circles->buckets[i];
+            while (curNode != NULL) {
+                int circle_id = curNode->data;
+                curNode = curNode->next;
+                if (isCircleFullInsideCellArea(circle_id, cell)) {
+                    continue;
+                }
+                if (!isCircleIDOverlappingCellArea(circle_id, cell)) {
+                    deleteCircle(rootCell, circle_id);
+                }
+                addCircleToParentCell(circle_id, cell);
             }
-            addCircleToParentCell(circle_id, cell);
         }
         return;
     }
@@ -195,18 +193,12 @@ void updateTree() {
         numIngoing = 0;
         pthread_mutex_unlock(&ingoingMutex);
     }
-    for (int i = 0; i < numCircles; i++) {
-        if (circle_inside[i]) {
-            move(&circles[i]);
-        }
-        //deleteCircle(rootCell, i);
-    }
     checkCollisions(rootCell);
     updateCell(rootCell);
 }
 
 bool addCircleToCell(int circle_id, struct Cell* cell) {
-    if (cell->circle_ids != NULL) {
+    if (cell->circles != NULL) {
         if (cellContainsCircle(cell, circle_id))
             return true;
 
@@ -221,15 +213,9 @@ bool addCircleToCell(int circle_id, struct Cell* cell) {
                 }
                 cell->numCirclesInCell++;
                 return false;
-            } else {
-                cell->circle_ids = (int *) realloc(cell->circle_ids, ((cell->numCirclesInCell) + 1) * sizeof(int));
-                if (cell->circle_ids == NULL) {
-                    printf("Memory error!");
-                    exit(1);
-                }
             }
         }
-        cell->circle_ids[cell->numCirclesInCell++] = circle_id;
+        cell->numCirclesInCell++;
         insert(cell->circles, circle_id);
         return false;
     }
@@ -318,26 +304,24 @@ void split(struct Cell* cell) {
         cell->subcells[i].numCirclesInCell = 0;
         cell->subcells[i].parentCell = cell;
         cell->subcells[i].subcells = NULL;
-        cell->subcells[i].circle_ids = (int*)malloc(maxCirclesPerCell * sizeof(int));
         cell->subcells[i].circles = initializeHashSet();
-        if (cell->subcells[i].circle_ids == NULL) {
-            printf("Memory error!");
-            exit(1);
+    }
+
+    for (int i = 0; i < HASHSET_SIZE; i++) {
+        Node* curNode = cell->circles->buckets[i];
+        while (curNode != NULL) {
+            int circle_id = curNode->data;
+            for (int j = 0; j < 4; j++) {
+                struct Cell* subcell = &cell->subcells[j];
+                if (!isCircleIDOverlappingCellArea(circle_id, subcell)) {
+                    continue;
+                }
+                addCircleToCell(circle_id, subcell);
+            }
+            curNode = curNode->next;
         }
     }
 
-    for (int i = 0; i < cell->numCirclesInCell; i++) {
-        int circle_id = cell->circle_ids[i];
-        for (int j = 0; j < 4; j++) {
-            struct Cell* subcell = &cell->subcells[j];
-            if (!isCircleIDOverlappingCellArea(circle_id, subcell))
-                continue;
-            addCircleToCell(circle_id, subcell);
-        }
-    }
-
-    free(cell->circle_ids);
-    cell->circle_ids = NULL;
     destroyHashset(cell->circles);
     cell->circles = NULL;
 }
@@ -348,31 +332,30 @@ void collapse(struct Cell* cell, struct Cell* originCell) {
     }
 
     if (cell == originCell) {
-        if (cell->circle_ids != NULL) {
+        if (cell->circles != NULL) {
             return;
         }
         cell->numCirclesInCell = 0;
-        cell->circle_ids = (int *) malloc(maxCirclesPerCell * sizeof(int));
         cell->circles = initializeHashSet();
-        if (cell->circle_ids == NULL) {
-            printf("Error: Failed to allocate memory for circle ids in cell.\n");
-            exit(1);
-        }
-    } else if (cell->circle_ids != NULL) {
-        for (int i = 0; i < cell->numCirclesInCell; i++) {
-            int circle_id = cell->circle_ids[i];
-            if (!isCircleIDOverlappingCellArea(circle_id, originCell) || cellContainsCircle(originCell, circle_id))
-                continue;
-            if (originCell->numCirclesInCell > maxCirclesPerCell) {
-                printf("WTF!\n");
-                return;
-            } else {
-                originCell->circle_ids[originCell->numCirclesInCell++] = circle_id;
-                insert(originCell->circles, circle_id);
+    } else if (cell->circles != NULL) {
+        for (int i = 0; i < HASHSET_SIZE; i++) {
+            Node* curNode = cell->circles->buckets[i];
+            while (curNode != NULL) {
+                int circle_id = curNode->data;
+                if (!isCircleIDOverlappingCellArea(circle_id, originCell) || cellContainsCircle(originCell, circle_id)) {
+                    curNode = curNode->next;
+                    continue;
+                }
+                if (originCell->numCirclesInCell > maxCirclesPerCell) {
+                    printf("WTF!\n");
+                    return;
+                } else {
+                    originCell->numCirclesInCell++;
+                    insert(originCell->circles, circle_id);
+                }
+                curNode = curNode->next;
             }
         }
-        free(cell->circle_ids);
-        cell->circle_ids = NULL;
         destroyHashset(cell->circles);
         cell->circles = NULL;
         return;
@@ -386,21 +369,13 @@ void collapse(struct Cell* cell, struct Cell* originCell) {
 }
 
 bool deleteCircle(struct Cell* cell, int circle_id) {
-    if (cell->circle_ids != NULL) {
+    if (cell->circles != NULL) {
         if (isCircleIDOverlappingCellArea(circle_id, cell))
             return false;
-        if (!cellContainsCircle(cell, circle_id))
+        if (!removeValue(cell->circles, circle_id))
             return false;
-        for (int i = 0; i < cell->numCirclesInCell; i++) {
-            if (cell->circle_ids[i] != circle_id)
-                continue;
-            for (int j = i; j < cell->numCirclesInCell - 1; j++) {
-                cell->circle_ids[j] = cell->circle_ids[j + 1];
-            }
-            cell->numCirclesInCell--;
-            removeValue(cell->circles, circle_id);
-            return true;
-        }
+        cell->numCirclesInCell--;
+        return true;
     } else {
         if (isCircleCloseToCellArea(circle_id, cell)) {
             bool deleted = false;
@@ -418,57 +393,68 @@ bool deleteCircle(struct Cell* cell, int circle_id) {
 }
 
 void checkCollisions(struct Cell* cell) {
-    if (cell->circle_ids == NULL) {
+    if (cell->circles == NULL) {
         for (int i = 0; i < 4; i++)
             checkCollisions(&cell->subcells[i]);
         return;
     }
 
-    for (int i = 0; i < cell->numCirclesInCell; i++) {
-        int id_1 = cell->circle_ids[i];
-        struct Circle* circle1 = &circles[id_1];
+    for (int i = 0; i < HASHSET_SIZE; i++) {
+        Node* curNode = cell->circles->buckets[i];
+        while (curNode != NULL) {
+            int id_1 = curNode->data;
+            struct Circle* circle1 = &circles[id_1];
+            Node *otherNode = curNode->next;
+            for (int j = i; j < HASHSET_SIZE; j++) {
+                if (i != j)
+                    otherNode = cell->circles->buckets[j];
+                while (otherNode != NULL) {
+                    int id_2 = otherNode->data;
+                    struct Circle *circle2 = &circles[id_2];
 
-        for (int j = i + 1; j < cell->numCirclesInCell; j++) {
-            int id_2 = cell->circle_ids[j];
+                    double dx = circle2->posX - circle1->posX;
+                    double dy = circle2->posY - circle1->posY;
 
-            struct Circle* circle2 = &circles[id_2];
+                    if (fabs(dx) > circleSize || fabs(dy) > circleSize) {
+                        otherNode = otherNode->next;
+                        continue;
+                    }
 
-            double dx = circle2->posX - circle1->posX;
-            double dy = circle2->posY - circle1->posY;
+                    double distSquared = dx * dx + dy * dy;
 
-            if (fabs(dx) > circleSize || fabs(dy) > circleSize)
-                continue;
+                    if (distSquared < circleSize * circleSize) {
+                        double dist = sqrt(distSquared);
+                        double overlap = (circleSize - dist) / 2.0;
+                        dx /= dist;
+                        dy /= dist;
 
-            double distSquared = dx * dx + dy * dy;
+                        circle1->posX -= overlap * dx;
+                        circle1->posY -= overlap * dy;
+                        circle2->posX += overlap * dx;
+                        circle2->posY += overlap * dy;
 
-            if (distSquared < circleSize * circleSize) {
-                double dist = sqrt(distSquared);
-                double overlap = (circleSize - dist) / 2.0;
-                dx /= dist;
-                dy /= dist;
+                        double dvx = circle2->velX - circle1->velX;
+                        double dvy = circle2->velY - circle1->velY;
+                        double dot = dvx * dx + dvy * dy;
 
-                circle1->posX -= overlap * dx;
-                circle1->posY -= overlap * dy;
-                circle2->posX += overlap * dx;
-                circle2->posY += overlap * dy;
+                        circle1->velX += dot * dx;
+                        circle1->velY += dot * dy;
+                        circle2->velX -= dot * dx;
+                        circle2->velY -= dot * dy;
 
-                double dvx = circle2->velX - circle1->velX;
-                double dvy = circle2->velY - circle1->velY;
-                double dot = dvx * dx + dvy * dy;
+                        circle1->velX *= friction;
+                        circle1->velY *= friction;
+                        circle2->velX *= friction;
+                        circle2->velY *= friction;
+                    }
 
-                circle1->velX += dot * dx;
-                circle1->velY += dot * dy;
-                circle2->velX -= dot * dx;
-                circle2->velY -= dot * dy;
-
-                circle1->velX *= friction;
-                circle1->velY *= friction;
-                circle2->velX *= friction;
-                circle2->velY *= friction;
+                    otherNode = otherNode->next;
+                }
             }
+            //checkPosition(circle1);
+            move(circle1);
+            curNode = curNode->next;
         }
-
-        checkPosition(circle1);
     }
 }
 
@@ -511,10 +497,15 @@ void printTree(struct Cell* cell, int depth) {
     }
     printf("%d", cell->numCirclesInCell);
 
-    if (cell->circle_ids != NULL) {
+    if (cell->circles != NULL) {
         printf(": ");
-        for (int i = 0; i < cell->numCirclesInCell; i++) {
-            printf("%d ", cell->circle_ids[i]);
+        for (int i = 0; i < HASHSET_SIZE; i++) {
+            Node* curNode = cell->circles->buckets[i];
+            while (curNode != NULL) {
+                int circle_id = curNode->data;
+                printf("%d ", circle_id);
+                curNode = curNode->next;
+            }
         }
         printf("\n");
         return;
