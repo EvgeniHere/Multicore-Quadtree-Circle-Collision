@@ -266,7 +266,7 @@ void sendToDifferentProcess(struct Circle* circle) {
 
 void addCircleToParentCell(struct Circle* circle, struct Cell* cell) {
     if (cell == rootCell) {
-        if (!isCircleFullInsideCellArea(circle, rootCell)) {
+        if (!isCircleOverlappingCellArea(circle, rootCell)) {
             sendToDifferentProcess(circle);
         }
         return;
@@ -580,9 +580,9 @@ void* sendCircle(void* arg) {
         while (numOutgoing == 0) {
             usleep(5000);
         }
-        oldNumOutgoing = numOutgoing;
 
         pthread_mutex_lock(&outgoingMutex);
+        oldNumOutgoing = numOutgoing;
 
         MPI_Request* requests = malloc(numOutgoing * sizeof(MPI_Request));
         MPI_Status* statuses = malloc(numOutgoing * sizeof(MPI_Status));
@@ -604,9 +604,9 @@ void* sendCircle(void* arg) {
             printf("%d %d\n", numOutgoing, num);
 
         numOutgoing = 0;
-        pthread_mutex_unlock(&outgoingMutex);
-
         MPI_Waitall(oldNumOutgoing, requests, statuses);
+
+        pthread_mutex_unlock(&outgoingMutex);
 
         free(requests);
         free(statuses);

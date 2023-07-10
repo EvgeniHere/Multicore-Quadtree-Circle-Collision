@@ -45,15 +45,15 @@ int main(int argc, char** argv) {
 
     numProcesses = size;
     numCircles = 100;
-    circleSize = 1.0;
-    maxSpeed = 0.5;
-    maxCirclesPerCell = 2;
+    circleSize = 30.0;
+    maxSpeed = 1.0;
+    maxCirclesPerCell = 10;
     minCellSize = 4 * circleSize + 4 * maxSpeed;
     friction = 0.999;
     gravity = 0.000001;
     circle_max_X = SCREEN_WIDTH;
     circle_max_Y = SCREEN_HEIGHT;
-    moduloIteration = 5;
+    moduloIteration = 1;
 
     //startNumCircles = numCircles;
     maxOutgoing = 1000;
@@ -167,14 +167,15 @@ void distributeCircles() {
 void update() {
     updateTree();
 
-    if (iterations % 10 == 0) {
+    /*if (iterations % 10 == 0) {
         printTree(rootCell, 0);
-    }
+    }*/
 
     if (iterations % moduloIteration == 0) {
         updateVisualsFromTree();
-        MPI_Barrier(MPI_COMM_WORLD);
     }
+
+    MPI_Barrier(MPI_COMM_WORLD);
 
     if (numProcesses > 1 && iterations % moduloIteration == 0) {
         if (rank != 0) {
@@ -229,7 +230,6 @@ void update() {
         }
     }
 
-    iterations++;
     clock_t end = clock();
     double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
     if (time_spent >= 10) {
@@ -244,8 +244,9 @@ void update() {
         //printTree(rootCell, 0);
     }
 
+    iterations++;
     if (rank == 0) {
-        if (iterations % moduloIteration == 0) {
+        if ((iterations-1) % moduloIteration == 0) {
             processes[0].numCells = numRects;
             processes[0].cells = rects;
             processes[0].numCircles = numCircles;
@@ -296,6 +297,7 @@ void display() {
         //printf("%d\n", processes[i].numCircles);
         for (int j = 0; j < processes[i].numCircles; j++) {
             drawCircle(processes[i].circles[j].posX, processes[i].circles[j].posY);
+            //j += (int) random_double(1.0, 8.0);
         }
     }
 
